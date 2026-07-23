@@ -1,19 +1,30 @@
 import type { IncomeSource } from "@/lib/validation/income-source";
+import { monthRange, type MonthKey } from "@/lib/date/month";
 
 /**
- * Sums gross yearly income from every source active on the given date
- * (defaults to today). Supports multiple concurrent income sources, and
- * sources that have ended, without needing separate spreadsheet columns.
+ * Income sources active at any point during the given month — i.e. their
+ * [effectiveFrom, effectiveTo] range overlaps the month, not just a single
+ * instant. Supports multiple concurrent sources and past sources that have
+ * since ended.
  */
-export function totalActiveGrossYearlyIncome(
+export function incomeSourcesActiveInMonth(
   incomeSources: IncomeSource[],
-  asOf: Date = new Date()
+  target: MonthKey
+): IncomeSource[] {
+  const { start, end } = monthRange(target);
+  return incomeSources.filter((source) => {
+    const startedByThen = source.effectiveFrom <= end;
+    const notYetEndedByThen = !source.effectiveTo || source.effectiveTo >= start;
+    return startedByThen && notYetEndedByThen;
+  });
+}
+
+export function totalGrossYearlyIncomeForMonth(
+  incomeSources: IncomeSource[],
+  target: MonthKey
 ): number {
-  return incomeSources
-    .filter((source) => {
-      const startedByNow = source.effectiveFrom <= asOf;
-      const notYetEnded = !source.effectiveTo || source.effectiveTo >= asOf;
-      return startedByNow && notYetEnded;
-    })
-    .reduce((sum, source) => sum + source.grossYearlyAmount, 0);
+  return incomeSourcesActiveInMonth(incomeSources, target).reduce(
+    (sum, source) => sum + source.grossYearlyAmount,
+    0
+  );
 }

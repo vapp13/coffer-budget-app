@@ -9,11 +9,15 @@ import { useBudgetSummary } from "@/hooks/use-budget-summary";
 import { useCategories } from "@/hooks/use-categories";
 import { useExpenses } from "@/hooks/use-expenses";
 import { useFormatting } from "@/hooks/use-formatting";
+import { useSelectedMonth } from "@/lib/date/month-provider";
+import { expenseAmountForMonth } from "@/lib/calculations/recurrence";
+import { sortItems } from "@/lib/sort";
 import { deriveInsights } from "@/lib/insights";
+import { MonthPicker } from "@/components/dashboard/month-picker";
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { SummaryCardSkeleton } from "@/components/dashboard/summary-card-skeleton";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
-import { RecentTransactions } from "@/components/dashboard/recent-transactions";
+import { RecentTransactions, type TransactionRow } from "@/components/dashboard/recent-transactions";
 import { InsightsCard } from "@/components/dashboard/insights-card";
 import { CategoryPieChart } from "@/components/charts/category-pie-chart";
 import { IncomeVsExpensesChart } from "@/components/charts/income-vs-expenses-chart";
@@ -31,6 +35,7 @@ export default function DashboardPage() {
   const { data: categories } = useCategories();
   const { data: expenses, createExpense } = useExpenses();
   const { formatCurrency } = useFormatting();
+  const { selectedMonth } = useSelectedMonth();
   const [isAddOpen, setIsAddOpen] = useState(false);
 
   const firstName = user?.displayName?.split(" ")[0];
@@ -38,6 +43,9 @@ export default function DashboardPage() {
     (categories ?? []).map((c) => [c.id, c.color])
   );
 
+  // Global "is there any data at all" check — deliberately unaffected by
+  // which month is selected, so browsing to a month before anything started
+  // doesn't wrongly show the first-run empty state.
   const hasNoData =
     !isLoading &&
     summary &&
@@ -46,6 +54,26 @@ export default function DashboardPage() {
 
   const savingsShare =
     summary?.categories.find((c) => c.categoryName === "Savings")?.percentageOfIncome ?? 0;
+
+  function categoryName(categoryId: string) {
+    return categories?.find((c) => c.id === categoryId)?.name ?? "Uncategorized";
+  }
+
+  const thisMonthsExpenses: TransactionRow[] = sortItems(
+    (expenses ?? [])
+      .map((expense) => ({ expense, amount: expenseAmountForMonth(expense, selectedMonth) }))
+      .filter((row) => row.amount > 0),
+    "amount-high",
+    (row) => row.expense.description,
+    (row) => row.amount
+  )
+    .slice(0, 6)
+    .map((row) => ({
+      id: row.expense.id,
+      description: row.expense.description,
+      categoryName: categoryName(row.expense.categoryId),
+      amount: row.amount,
+    }));
 
   async function handleAdd(input: ExpenseInput) {
     try {
@@ -59,9 +87,12 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
-      <p className="text-sm text-muted-foreground">
-        Welcome back{firstName ? `, ${firstName}` : ""}.
-      </p>
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">
+          Welcome back{firstName ? `, ${firstName}` : ""}.
+        </p>
+        <MonthPicker />
+      </div>
 
       {isLoading && (
         <div className="flex flex-col gap-6">
@@ -139,8 +170,8 @@ export default function DashboardPage() {
           </div>
 
           <RecentTransactions
-            expenses={expenses ?? []}
-            categories={categories ?? []}
+            title="This month's expenses"
+            items={thisMonthsExpenses}
             formatCurrency={formatCurrency}
           />
 

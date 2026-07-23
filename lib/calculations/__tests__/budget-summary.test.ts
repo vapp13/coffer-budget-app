@@ -70,7 +70,9 @@ const summary = calculateBudgetSummary(
   expenses,
   categories,
   DEFAULT_TAX_PROFILE,
-  new Date("2026-06-01")
+  { year: 2026, month: 5 } // June 2026 — no fixture expense has a start/end date, so every
+  // frequency falls back to its steady-state smoothed contribution, which is why these
+  // month-scoped figures still match the original spreadsheet's always-smoothed model exactly.
 );
 
 function categoryYearly(name: string): number {
@@ -134,11 +136,66 @@ describe("remaining budget — matches Budget_2026.xlsx 'Remaining' row", () => 
     expect(summary.totalYearlyExpenses).toBeCloseTo(31333.37, 1);
   });
 
-  it("remaining yearly budget (spreadsheet M6 / row 14 = 5505.87)", () => {
-    expect(summary.remaining.yearly).toBeCloseTo(5505.87, 1);
-  });
-
   it("remaining as a percentage of net income (spreadsheet D14 = 0.149457)", () => {
     expect(summary.remaining.percentageOfIncome).toBeCloseTo(0.149457, 5);
+  });
+});
+
+describe("multi-month recurrence — end-to-end", () => {
+  const monthlyFromMarch: Expense = {
+    id: "m1",
+    description: "New gym membership",
+    categoryId: "Subscriptions",
+    unitCost: 40,
+    frequency: "monthly",
+    isActive: true,
+    startDate: new Date("2026-03-01"),
+  };
+  const yearlyInSeptember: Expense = {
+    id: "y1",
+    description: "Car insurance",
+    categoryId: "Transport",
+    unitCost: 480,
+    frequency: "yearly",
+    isActive: true,
+    startDate: new Date("2025-09-15"),
+  };
+  const endedInJune: Expense = {
+    id: "e1",
+    description: "Old streaming service",
+    categoryId: "Subscriptions",
+    unitCost: 10,
+    frequency: "monthly",
+    isActive: true,
+    startDate: new Date("2020-01-01"),
+    endDate: new Date("2026-06-30"),
+  };
+
+  const multiMonthExpenses = [monthlyFromMarch, yearlyInSeptember, endedInJune];
+
+  function totalForMonth(year: number, month: number) {
+    return calculateBudgetSummary(
+      incomeSources,
+      multiMonthExpenses,
+      categories,
+      DEFAULT_TAX_PROFILE,
+      { year, month }
+    ).totalMonthlyExpenses;
+  }
+
+  it("a monthly expense starting in March doesn't appear in January or February", () => {
+    expect(totalForMonth(2026, 0)).toBeCloseTo(10, 2); // only the still-active "ended in June" one
+    expect(totalForMonth(2026, 1)).toBeCloseTo(10, 2);
+    expect(totalForMonth(2026, 2)).toBeCloseTo(50, 2); // +40 gym membership
+  });
+
+  it("a yearly expense only spikes the total in its billing month", () => {
+    expect(totalForMonth(2026, 8)).toBeCloseTo(40 + 480, 2); // September: gym + car insurance (streaming already ended)
+    expect(totalForMonth(2026, 9)).toBeCloseTo(40, 2); // October: no car insurance either
+  });
+
+  it("an expense with an end date stops contributing after that month", () => {
+    expect(totalForMonth(2026, 5)).toBeCloseTo(40 + 10, 2); // June: still active
+    expect(totalForMonth(2026, 6)).toBeCloseTo(40, 2); // July: streaming has ended
   });
 });

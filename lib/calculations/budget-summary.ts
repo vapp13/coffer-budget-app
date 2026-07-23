@@ -3,51 +3,56 @@ import type { Category } from "@/lib/validation/category";
 import type { IncomeSource } from "@/lib/validation/income-source";
 import type { TaxProfileInput } from "@/lib/validation/tax-profile";
 import { calculateIncomeBreakdown, type IncomeBreakdown } from "@/lib/calculations/income-tax";
-import { totalActiveGrossYearlyIncome } from "@/lib/calculations/income-sources";
-import { activeExpenses, totalYearlyExpenses, categoryTotals, type CategoryTotal } from "@/lib/calculations/expenses";
+import { totalGrossYearlyIncomeForMonth } from "@/lib/calculations/income-sources";
+import {
+  totalYearlyExpenseRate,
+  totalExpensesForMonth,
+  categoryTotalsForMonth,
+  type CategoryTotal,
+} from "@/lib/calculations/expenses";
 import { round2 } from "@/lib/calculations/math-helpers";
+import type { MonthKey } from "@/lib/date/month";
 
 export type BudgetSummary = {
   income: IncomeBreakdown;
+  /** Sum of every expense's annualized rate — a steady reference figure, unaffected by the selected month. */
   totalYearlyExpenses: number;
+  /** What's actually incurred in the selected month, based on each expense's real recurrence. */
   totalMonthlyExpenses: number;
   categories: CategoryTotal[];
   remaining: {
-    yearly: number;
     monthly: number;
     percentageOfIncome: number;
   };
 };
 
 /**
- * The full picture for one point in time: net/gross income broken down by
- * time unit, every category's yearly/monthly total and % of income, and
- * what's left over after expenses — mirroring the spreadsheet's
- * "Remaining" row (`=A31-J31`, then ÷12, then ÷A31 for percentage).
+ * The full picture for one specific calendar month: net/gross income from
+ * whichever income sources are active that month, every category's actual
+ * spend that month (via the recurrence engine — a yearly bill only counts
+ * in its billing month), and what's left over.
  */
 export function calculateBudgetSummary(
   incomeSources: IncomeSource[],
   expenses: Expense[],
   categories: Category[],
   taxProfile: TaxProfileInput,
-  asOf: Date = new Date()
+  selectedMonth: MonthKey
 ): BudgetSummary {
-  const yearlyGross = totalActiveGrossYearlyIncome(incomeSources, asOf);
+  const yearlyGross = totalGrossYearlyIncomeForMonth(incomeSources, selectedMonth);
   const income = calculateIncomeBreakdown(yearlyGross, taxProfile);
+  const netMonthly = income.net.monthly;
 
-  const relevantExpenses = activeExpenses(expenses, asOf);
-  const yearlyExpenses = totalYearlyExpenses(relevantExpenses);
-  const netYearly = income.net.yearly;
+  const monthlyExpenses = totalExpensesForMonth(expenses, selectedMonth);
 
   return {
     income,
-    totalYearlyExpenses: yearlyExpenses,
-    totalMonthlyExpenses: round2(yearlyExpenses / 12),
-    categories: categoryTotals(relevantExpenses, categories, netYearly),
+    totalYearlyExpenses: totalYearlyExpenseRate(expenses),
+    totalMonthlyExpenses: monthlyExpenses,
+    categories: categoryTotalsForMonth(expenses, categories, selectedMonth, netMonthly),
     remaining: {
-      yearly: round2(netYearly - yearlyExpenses),
-      monthly: round2((netYearly - yearlyExpenses) / 12),
-      percentageOfIncome: netYearly === 0 ? 0 : (netYearly - yearlyExpenses) / netYearly,
+      monthly: round2(netMonthly - monthlyExpenses),
+      percentageOfIncome: netMonthly === 0 ? 0 : (netMonthly - monthlyExpenses) / netMonthly,
     },
   };
 }
