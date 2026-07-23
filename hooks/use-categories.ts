@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import {
   listCategories,
   addCategory,
+  updateCategory,
   ensureDefaultCategories,
 } from "@/lib/data/categories";
 import { dedupeCategories } from "@/lib/data/dedupe-categories";
@@ -48,5 +49,12 @@ export function useCategories() {
       queryClient.invalidateQueries({ queryKey: ["categories", userId] }),
   });
 
-  return { ...query, createCategory };
+  const editCategory = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: CategoryInput }) =>
+      updateCategory(userId as string, id, input),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["categories", userId] }),
+  });
+
+  return { ...query, createCategory, editCategory };
 }

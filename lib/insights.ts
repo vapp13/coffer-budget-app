@@ -1,6 +1,7 @@
 import type { BudgetSummary } from "@/lib/calculations/budget-summary";
 
 export type Insight =
+  | { kind: "over-budget"; categoryNames: string[] }
   | { kind: "largest-category"; categoryName: string; percentage: number }
   | { kind: "overspend"; amount: number }
   | { kind: "buffer"; percentage: number }
@@ -14,6 +15,18 @@ export type Insight =
  */
 export function deriveInsights(summary: BudgetSummary): Insight[] {
   const insights: Insight[] = [];
+
+  // Over-budget categories are the most actionable observation, so they're
+  // checked (and shown) first.
+  const overBudgetCategories = summary.categories.filter(
+    (c) => c.monthlyBudget !== undefined && c.monthlyBudget > 0 && c.monthly > c.monthlyBudget
+  );
+  if (overBudgetCategories.length > 0) {
+    insights.push({
+      kind: "over-budget",
+      categoryNames: overBudgetCategories.map((c) => c.categoryName),
+    });
+  }
 
   const spendingCategories = summary.categories.filter((c) => c.yearly > 0);
   const largest = spendingCategories.reduce<(typeof spendingCategories)[number] | null>(

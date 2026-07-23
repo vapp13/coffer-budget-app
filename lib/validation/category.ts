@@ -10,6 +10,8 @@ export const categorySchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, "Color must be a hex value like #4C6FFF"),
   isDefault: z.boolean().default(false),
+  /** Optional per-category monthly spending limit, for budget tracking. No limit if unset. */
+  monthlyBudget: z.coerce.number().positive().optional(),
 });
 
 export type CategoryInput = z.infer<typeof categorySchema>;

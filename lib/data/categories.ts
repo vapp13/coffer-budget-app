@@ -1,9 +1,11 @@
 import {
   collection,
   addDoc,
+  updateDoc,
   getDocs,
   doc,
   runTransaction,
+  deleteField,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import {
@@ -30,6 +32,21 @@ export async function addCategory(
   const parsed = categorySchema.parse(input);
   const docRef = await addDoc(categoriesRef(userId), parsed);
   return docRef.id;
+}
+
+export async function updateCategory(
+  userId: string,
+  categoryId: string,
+  input: CategoryInput
+): Promise<void> {
+  const parsed = categorySchema.parse(input);
+  // `undefined` fields are dropped by Firestore's update, not cleared, so a
+  // budget being removed needs an explicit delete sentinel.
+  const payload: Record<string, unknown> = { ...parsed };
+  if (parsed.monthlyBudget === undefined) {
+    payload.monthlyBudget = deleteField();
+  }
+  await updateDoc(doc(categoriesRef(userId), categoryId), payload);
 }
 
 /**

@@ -37,6 +37,8 @@ export type CategoryTotal = {
   monthly: number;
   /** This category's share of the selected month's net income (0–1). */
   percentageOfIncome: number;
+  /** The category's optional monthly spending limit, if one is set. */
+  monthlyBudget?: number;
 };
 
 /**
@@ -65,6 +67,7 @@ export function categoryTotalsForMonth(
       yearly,
       monthly,
       percentageOfIncome: netMonthlyIncome === 0 ? 0 : monthly / netMonthlyIncome,
+      monthlyBudget: category.monthlyBudget,
     };
   });
 }

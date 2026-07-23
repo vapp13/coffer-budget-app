@@ -186,6 +186,9 @@ export default function DashboardPage() {
               <Link href="/income" className="hover:underline">
                 Income
               </Link>
+              <Link href="/budgets" className="hover:underline">
+                Budgets
+              </Link>
             </div>
           </Card>
         </>
