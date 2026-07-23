@@ -1,4 +1,5 @@
 import type { Expense } from "@/lib/validation/expense";
+import { resolveExpenseType } from "@/lib/validation/expense";
 import type { Category } from "@/lib/validation/category";
 import { normalizeToYearly } from "@/lib/calculations/frequency";
 import { expenseAmountForMonth } from "@/lib/calculations/recurrence";
@@ -11,8 +12,12 @@ import type { MonthKey } from "@/lib/date/month";
  * any particular month. Used for CSV export's "Total Yearly" column and
  * the category breakdown's reference "yearly" figure; unaffected by which
  * month is selected.
+ *
+ * A one-time expense doesn't repeat, so its "yearly rate" is just its own
+ * cost once — frequency is ignored for these regardless of what it's set to.
  */
 export function expenseYearlyTotal(expense: Expense): number {
+  if (resolveExpenseType(expense) === "one_time") return expense.unitCost;
   return normalizeToYearly(expense.unitCost, expense.frequency);
 }
 

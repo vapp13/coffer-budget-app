@@ -94,6 +94,8 @@ export default function DataPage() {
           categoryId,
           unitCost: row.amount,
           frequency: row.frequency,
+          expenseType: row.expenseType,
+          startDate: row.date,
           isActive: true,
         });
       }

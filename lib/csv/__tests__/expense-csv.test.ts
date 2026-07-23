@@ -90,7 +90,32 @@ House Mortgage,Mortgage,monthly,769.65,999999`;
       "description",
       "categoryName",
       "frequency",
+      "expenseType",
+      "date",
       "amount",
     ]);
+  });
+
+  it("defaults Type to recurring when absent or unrecognized", () => {
+    const csv = `Description,Category,Frequency,Amount
+House Mortgage,Mortgage,monthly,769.65`;
+    const result = parseExpensesCsv(csv);
+    expect(result.validRows[0]!.expenseType).toBe("recurring");
+  });
+
+  it("parses a one-time row with a valid Date", () => {
+    const csv = `Description,Category,Type,Date,Frequency,Amount
+New laptop,Personal Spending,One-time,2026-03-15,monthly,899`;
+    const result = parseExpensesCsv(csv);
+    expect(result.validRows[0]!.expenseType).toBe("one_time");
+    expect(result.validRows[0]!.date?.getUTCMonth()).toBe(2);
+  });
+
+  it("skips a one-time row with no valid Date", () => {
+    const csv = `Description,Category,Type,Frequency,Amount
+New laptop,Personal Spending,One-time,monthly,899`;
+    const result = parseExpensesCsv(csv);
+    expect(result.validRows).toHaveLength(0);
+    expect(result.skipped[0]!.reason).toMatch(/one-time/i);
   });
 });

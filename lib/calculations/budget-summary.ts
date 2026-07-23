@@ -11,6 +11,7 @@ import {
   categoryTotalsForMonth,
   type CategoryTotal,
 } from "@/lib/calculations/expenses";
+import { isEndingThisMonth } from "@/lib/calculations/archive-logic";
 import { round2 } from "@/lib/calculations/math-helpers";
 import type { MonthKey } from "@/lib/date/month";
 
@@ -27,6 +28,8 @@ export type BudgetSummary = {
     monthly: number;
     percentageOfIncome: number;
   };
+  /** Recurring expenses whose end date falls in the selected month — they'll auto-archive after it. */
+  endingSoonExpenses: string[];
 };
 
 /**
@@ -64,5 +67,8 @@ export function calculateBudgetSummary(
       monthly: round2(netMonthly - monthlyExpenses),
       percentageOfIncome: netMonthly === 0 ? 0 : (netMonthly - monthlyExpenses) / netMonthly,
     },
+    endingSoonExpenses: expenses
+      .filter((expense) => isEndingThisMonth(expense, selectedMonth))
+      .map((expense) => expense.description),
   };
 }

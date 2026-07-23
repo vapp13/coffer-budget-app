@@ -17,6 +17,14 @@ function renderInsight(insight: Insight, formatCurrency: (value: number) => stri
       const names = rest.length > 0 ? `${first} and ${second}, and ${rest.length} more` : `${first} and ${second}`;
       return `You're over budget in ${names} this month.`;
     }
+    case "ending-soon": {
+      const [first, second, ...rest] = insight.expenseNames;
+      if (insight.expenseNames.length === 1) {
+        return `"${first}" will end at the end of this month and will be automatically archived.`;
+      }
+      const names = rest.length > 0 ? `${first} and ${second}, and ${rest.length} more` : `${first} and ${second}`;
+      return `${names} will end at the end of this month and will be automatically archived.`;
+    }
     case "largest-category":
       return `${insight.categoryName} is your biggest expense category, at ${insight.percentage.toFixed(0)}% of your net income.`;
     case "overspend":
@@ -40,21 +48,19 @@ export function InsightsCard({ insights, formatCurrency }: InsightsCardProps) {
         <h2 className="text-sm font-medium">Insights</h2>
       </div>
       <ul className="flex flex-col gap-2">
-        {insights.map((insight, index) => (
-          <li
-            key={index}
-            className={
-              insight.kind === "over-budget"
-                ? "flex items-start gap-2 text-sm font-medium text-negative"
-                : "text-sm text-muted-foreground"
-            }
-          >
-            {insight.kind === "over-budget" && (
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            )}
-            {renderInsight(insight, formatCurrency)}
-          </li>
-        ))}
+        {insights.map((insight, index) => {
+          const isWarning = insight.kind === "over-budget" || insight.kind === "ending-soon";
+          const tone = insight.kind === "over-budget" ? "text-negative" : "text-accent";
+          return (
+            <li
+              key={index}
+              className={isWarning ? `flex items-start gap-2 text-sm font-medium ${tone}` : "text-sm text-muted-foreground"}
+            >
+              {isWarning && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
+              {renderInsight(insight, formatCurrency)}
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );

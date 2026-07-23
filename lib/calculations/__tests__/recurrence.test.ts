@@ -14,6 +14,7 @@ function baseExpense(overrides: Partial<Expense>): Expense {
     categoryId: "cat-1",
     unitCost: 100,
     frequency: "monthly",
+    expenseType: "recurring",
     isActive: true,
     ...overrides,
   };
@@ -103,6 +104,30 @@ describe("inactive expenses", () => {
   it("never occur regardless of dates", () => {
     const expense = baseExpense({ isActive: false, startDate: utc(2020, 0, 1) });
     expect(expenseOccursInMonth(expense, MAR)).toBe(false);
+  });
+});
+
+describe("one-time expenses", () => {
+  it("occurs only in its own month, ignoring frequency entirely", () => {
+    const expense = baseExpense({
+      expenseType: "one_time",
+      frequency: "monthly", // deliberately set but should be ignored
+      startDate: utc(2026, 2, 10),
+    });
+    expect(expenseOccursInMonth(expense, JAN)).toBe(false);
+    expect(expenseOccursInMonth(expense, FEB)).toBe(false);
+    expect(expenseOccursInMonth(expense, MAR)).toBe(true);
+    expect(expenseOccursInMonth(expense, APR)).toBe(false);
+  });
+
+  it("contributes its full cost once, not a monthly-equivalent share", () => {
+    const expense = baseExpense({
+      expenseType: "one_time",
+      unitCost: 500,
+      startDate: utc(2026, 2, 10),
+    });
+    expect(expenseAmountForMonth(expense, MAR)).toBe(500);
+    expect(expenseAmountForMonth(expense, APR)).toBe(0);
   });
 });
 

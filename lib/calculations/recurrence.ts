@@ -1,5 +1,6 @@
 import type { Expense } from "@/lib/validation/expense";
-import { monthKeyFromStoredDate, compareMonths, monthsBetween, daysInMonth, type MonthKey } from "@/lib/date/month";
+import { resolveExpenseType } from "@/lib/validation/expense";
+import { monthKeyFromStoredDate, compareMonths, isSameMonth, monthsBetween, daysInMonth, type MonthKey } from "@/lib/date/month";
 
 function mod(n: number, m: number): number {
   return ((n % m) + m) % m;
@@ -20,15 +21,25 @@ function anchorMonthFor(expense: Expense): MonthKey | null {
 }
 
 /**
- * Whether this expense has an occurrence in the given month at all, per its
- * start date, end date, and frequency:
- * - A monthly (or daily/weekly/fortnightly) expense recurs every month it's
- *   active in.
- * - A quarterly expense recurs every third month counting from its anchor.
- * - A yearly expense recurs only in its anchor's calendar month, once a year.
+ * Whether this expense has an occurrence in the given month at all.
+ *
+ * A one-time expense occurs in exactly one month — the month of its start
+ * date — regardless of what its `frequency` field happens to hold (it's
+ * ignored entirely for one-time expenses).
+ *
+ * A recurring expense follows its frequency:
+ * - Monthly (or daily/weekly/fortnightly) recurs every month it's active in.
+ * - Quarterly recurs every third month counting from its anchor.
+ * - Yearly recurs only in its anchor's calendar month, once a year.
  */
 export function expenseOccursInMonth(expense: Expense, target: MonthKey): boolean {
   if (!expense.isActive) return false;
+
+  if (resolveExpenseType(expense) === "one_time") {
+    // Schema requires a start date for one-time expenses; defensively treat
+    // a missing one as "never occurs" rather than throwing.
+    return expense.startDate ? isSameMonth(monthKeyFromStoredDate(expense.startDate), target) : false;
+  }
 
   if (expense.endDate && compareMonths(target, monthKeyFromStoredDate(expense.endDate)) > 0) {
     return false;
@@ -53,13 +64,17 @@ export function expenseOccursInMonth(expense: Expense, target: MonthKey): boolea
 
 /**
  * The actual amount this expense contributes in the given month — £0 if it
- * doesn't occur at all that month (e.g. a yearly bill in an off-month).
- * Daily/weekly/fortnightly amounts use the target month's real day count
- * rather than a flat 1/365 or 1/52 share, so February and a 31-day month
- * aren't treated identically.
+ * doesn't occur at all that month (e.g. a yearly bill in an off-month, or a
+ * one-time expense in any month but its own). Daily/weekly/fortnightly
+ * amounts use the target month's real day count rather than a flat 1/365 or
+ * 1/52 share, so February and a 31-day month aren't treated identically.
  */
 export function expenseAmountForMonth(expense: Expense, target: MonthKey): number {
   if (!expenseOccursInMonth(expense, target)) return 0;
+
+  if (resolveExpenseType(expense) === "one_time") {
+    return expense.unitCost;
+  }
 
   const days = daysInMonth(target.year, target.month);
 

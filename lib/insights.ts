@@ -2,6 +2,7 @@ import type { BudgetSummary } from "@/lib/calculations/budget-summary";
 
 export type Insight =
   | { kind: "over-budget"; categoryNames: string[] }
+  | { kind: "ending-soon"; expenseNames: string[] }
   | { kind: "largest-category"; categoryName: string; percentage: number }
   | { kind: "overspend"; amount: number }
   | { kind: "buffer"; percentage: number }
@@ -16,8 +17,8 @@ export type Insight =
 export function deriveInsights(summary: BudgetSummary): Insight[] {
   const insights: Insight[] = [];
 
-  // Over-budget categories are the most actionable observation, so they're
-  // checked (and shown) first.
+  // Over-budget categories and expenses ending soon are the most actionable
+  // observations, so they're checked (and shown) first.
   const overBudgetCategories = summary.categories.filter(
     (c) => c.monthlyBudget !== undefined && c.monthlyBudget > 0 && c.monthly > c.monthlyBudget
   );
@@ -26,6 +27,10 @@ export function deriveInsights(summary: BudgetSummary): Insight[] {
       kind: "over-budget",
       categoryNames: overBudgetCategories.map((c) => c.categoryName),
     });
+  }
+
+  if (summary.endingSoonExpenses.length > 0) {
+    insights.push({ kind: "ending-soon", expenseNames: summary.endingSoonExpenses });
   }
 
   const spendingCategories = summary.categories.filter((c) => c.yearly > 0);

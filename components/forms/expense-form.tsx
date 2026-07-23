@@ -43,6 +43,7 @@ export function ExpenseForm({
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
     reset,
   } = useForm<ExpenseInput>({
@@ -50,13 +51,17 @@ export function ExpenseForm({
     defaultValues: {
       isActive: true,
       frequency: "monthly",
+      expenseType: "recurring",
       ...defaultValues,
     } as ExpenseInput,
   });
 
+  const expenseType = watch("expenseType");
+  const isOneTime = expenseType === "one_time";
+
   async function submit(values: ExpenseInput) {
     await onSubmit(values);
-    reset({ isActive: true, frequency: "monthly" });
+    reset({ isActive: true, frequency: "monthly", expenseType: "recurring" });
   }
 
   return (
@@ -65,6 +70,15 @@ export function ExpenseForm({
         <Label htmlFor="description">Description</Label>
         <Input id="description" placeholder="e.g. House Mortgage" {...register("description")} />
         <FieldError message={errors.description?.message} />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="expenseType">Type</Label>
+        <Select id="expenseType" {...register("expenseType")}>
+          <option value="recurring">Recurring — repeats every period, stays active indefinitely</option>
+          <option value="one_time">One-time — counts only in its own month, then archives automatically</option>
+        </Select>
+        <FieldError message={errors.expenseType?.message} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -81,21 +95,23 @@ export function ExpenseForm({
           <FieldError message={errors.categoryId?.message} />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="frequency">Frequency</Label>
-          <Select id="frequency" {...register("frequency")}>
-            {FREQUENCY_OPTIONS.map((frequency) => (
-              <option key={frequency} value={frequency}>
-                {frequency.charAt(0).toUpperCase() + frequency.slice(1)}
-              </option>
-            ))}
-          </Select>
-          <FieldError message={errors.frequency?.message} />
-        </div>
+        {!isOneTime && (
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="frequency">Frequency</Label>
+            <Select id="frequency" {...register("frequency")}>
+              {FREQUENCY_OPTIONS.map((frequency) => (
+                <option key={frequency} value={frequency}>
+                  {frequency.charAt(0).toUpperCase() + frequency.slice(1)}
+                </option>
+              ))}
+            </Select>
+            <FieldError message={errors.frequency?.message} />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="unitCost">Cost per occurrence</Label>
+        <Label htmlFor="unitCost">{isOneTime ? "Cost" : "Cost per occurrence"}</Label>
         <Input
           id="unitCost"
           type="number"
@@ -108,14 +124,17 @@ export function ExpenseForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1">
-          <Label htmlFor="startDate">Start date (optional)</Label>
+          <Label htmlFor="startDate">{isOneTime ? "Date" : "Start date (optional)"}</Label>
           <Input id="startDate" type="date" {...register("startDate")} />
+          <FieldError message={errors.startDate?.message} />
         </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="endDate">End date (optional)</Label>
-          <Input id="endDate" type="date" {...register("endDate")} />
-          <FieldError message={errors.endDate?.message} />
-        </div>
+        {!isOneTime && (
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="endDate">End date (optional)</Label>
+            <Input id="endDate" type="date" {...register("endDate")} />
+            <FieldError message={errors.endDate?.message} />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">

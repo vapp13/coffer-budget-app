@@ -66,3 +66,12 @@ export async function deleteExpense(
 ): Promise<void> {
   await deleteDoc(doc(expensesRef(userId), expenseId));
 }
+
+/** Archive (false) or restore (true) an expense without touching its other fields. */
+export async function setExpenseActive(
+  userId: string,
+  expenseId: string,
+  isActive: boolean
+): Promise<void> {
+  await updateDoc(doc(expensesRef(userId), expenseId), { isActive });
+}

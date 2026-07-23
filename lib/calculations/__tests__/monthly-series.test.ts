@@ -49,6 +49,7 @@ describe("buildMonthlySeries", () => {
       categoryId: "sub",
       unitCost: 40,
       frequency: "monthly",
+      expenseType: "recurring",
       isActive: true,
       startDate: new Date("2026-01-01"),
     },
@@ -58,6 +59,7 @@ describe("buildMonthlySeries", () => {
       categoryId: "sub",
       unitCost: 120,
       frequency: "yearly",
+      expenseType: "recurring",
       isActive: true,
       startDate: new Date("2025-03-15"), // March anchor
     },

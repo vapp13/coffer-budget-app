@@ -16,6 +16,7 @@ function fakeSummary(overrides: {
   categories?: CategoryTotal[];
   remainingMonthly?: number;
   remainingPercentage?: number;
+  endingSoonExpenses?: string[];
 }): BudgetSummary {
   return {
     income: fakeIncomeBreakdown(),
@@ -27,6 +28,7 @@ function fakeSummary(overrides: {
       monthly: overrides.remainingMonthly ?? 500,
       percentageOfIncome: overrides.remainingPercentage ?? 0.15,
     },
+    endingSoonExpenses: overrides.endingSoonExpenses ?? [],
   };
 }
 
@@ -85,5 +87,22 @@ describe("deriveInsights — over-budget alerts", () => {
     });
     const insights = deriveInsights(summary);
     expect(insights[0]!.kind).toBe("over-budget");
+  });
+});
+
+describe("deriveInsights — ending-soon alerts", () => {
+  it("flags expenses ending this month", () => {
+    const summary = fakeSummary({ endingSoonExpenses: ["Gym membership"] });
+    const insights = deriveInsights(summary);
+    expect(insights.find((i) => i.kind === "ending-soon")).toEqual({
+      kind: "ending-soon",
+      expenseNames: ["Gym membership"],
+    });
+  });
+
+  it("does not flag anything when nothing is ending", () => {
+    const summary = fakeSummary({ endingSoonExpenses: [] });
+    const insights = deriveInsights(summary);
+    expect(insights.find((i) => i.kind === "ending-soon")).toBeUndefined();
   });
 });
