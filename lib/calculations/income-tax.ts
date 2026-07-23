@@ -93,7 +93,7 @@ export type IncomeBreakdown = {
   };
 };
 
-function timeUnitSplit(yearlyAmount: number) {
+export function timeUnitSplit(yearlyAmount: number) {
   return {
     yearly: yearlyAmount,
     monthly: yearlyAmount / 12,

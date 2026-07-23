@@ -1,9 +1,10 @@
 import type { Expense } from "@/lib/validation/expense";
 import type { Category } from "@/lib/validation/category";
 import type { IncomeSource } from "@/lib/validation/income-source";
+import type { Deduction } from "@/lib/validation/deduction";
 import type { TaxProfileInput } from "@/lib/validation/tax-profile";
-import { calculateIncomeBreakdown, type IncomeBreakdown } from "@/lib/calculations/income-tax";
-import { totalGrossYearlyIncomeForMonth } from "@/lib/calculations/income-sources";
+import type { IncomeBreakdown } from "@/lib/calculations/income-tax";
+import { calculateCombinedIncomeForMonth, type IncomeSourceBreakdown } from "@/lib/calculations/income-sources";
 import {
   totalYearlyExpenseRate,
   totalExpensesForMonth,
@@ -15,6 +16,8 @@ import type { MonthKey } from "@/lib/date/month";
 
 export type BudgetSummary = {
   income: IncomeBreakdown;
+  /** Per-source detail — which sources used manual deductions vs the automatic estimate. */
+  incomeSources: IncomeSourceBreakdown[];
   /** Sum of every expense's annualized rate — a steady reference figure, unaffected by the selected month. */
   totalYearlyExpenses: number;
   /** What's actually incurred in the selected month, based on each expense's real recurrence. */
@@ -28,25 +31,32 @@ export type BudgetSummary = {
 
 /**
  * The full picture for one specific calendar month: net/gross income from
- * whichever income sources are active that month, every category's actual
- * spend that month (via the recurrence engine — a yearly bill only counts
- * in its billing month), and what's left over.
+ * whichever income sources are active that month (each source's net using
+ * its own manual deductions if entered, otherwise the automatic estimate),
+ * every category's actual spend that month (via the recurrence engine — a
+ * yearly bill only counts in its billing month), and what's left over.
  */
 export function calculateBudgetSummary(
   incomeSources: IncomeSource[],
   expenses: Expense[],
   categories: Category[],
   taxProfile: TaxProfileInput,
-  selectedMonth: MonthKey
+  selectedMonth: MonthKey,
+  deductionsBySourceId: Record<string, Deduction[]> = {}
 ): BudgetSummary {
-  const yearlyGross = totalGrossYearlyIncomeForMonth(incomeSources, selectedMonth);
-  const income = calculateIncomeBreakdown(yearlyGross, taxProfile);
+  const { breakdown: income, sources } = calculateCombinedIncomeForMonth(
+    incomeSources,
+    deductionsBySourceId,
+    taxProfile,
+    selectedMonth
+  );
   const netMonthly = income.net.monthly;
 
   const monthlyExpenses = totalExpensesForMonth(expenses, selectedMonth);
 
   return {
     income,
+    incomeSources: sources,
     totalYearlyExpenses: totalYearlyExpenseRate(expenses),
     totalMonthlyExpenses: monthlyExpenses,
     categories: categoryTotalsForMonth(expenses, categories, selectedMonth, netMonthly),

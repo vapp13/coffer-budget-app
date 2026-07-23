@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Wallet, ArrowUpDown, LayoutGrid } from "lucide-react";
+import { ArrowLeft, Plus, Wallet, ArrowUpDown, LayoutGrid, ReceiptText } from "lucide-react";
 import { toast } from "sonner";
 import { useIncomeSources } from "@/hooks/use-income-sources";
 import { useFormatting } from "@/hooks/use-formatting";
 import { IncomeSourceForm } from "@/components/forms/income-source-form";
 import { IncomeItem } from "@/components/income/income-item";
 import { IncomeDetailsModal } from "@/components/income/income-details-modal";
+import { ManageDeductionsDialog } from "@/components/income/manage-deductions-dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -48,6 +49,7 @@ export default function IncomePage() {
   const [view, setView] = useState<ViewOption>("list");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDeductionsOpen, setIsDeductionsOpen] = useState(false);
   const [editingIncome, setEditingIncome] = useState<IncomeSource | null>(null);
   const [viewingIncome, setViewingIncome] = useState<IncomeSource | null>(null);
   const [deletingIncome, setDeletingIncome] = useState<IncomeSource | null>(null);
@@ -146,10 +148,16 @@ export default function IncomePage() {
           <h1 className="font-display text-xl font-semibold">Income</h1>
           <p className="text-sm text-muted-foreground">Gross yearly income sources.</p>
         </div>
-        <Button onClick={openAddModal}>
-          <Plus className="h-4 w-4" />
-          Add
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsDeductionsOpen(true)}>
+            <ReceiptText className="h-4 w-4" />
+            Deductions
+          </Button>
+          <Button onClick={openAddModal}>
+            <Plus className="h-4 w-4" />
+            Add
+          </Button>
+        </div>
       </div>
 
       {!isLoading && incomeSources && incomeSources.length > 0 && (
@@ -252,6 +260,12 @@ export default function IncomePage() {
         formatCurrency={formatCurrency}
         formatDate={formatDate}
         onClose={() => setViewingIncome(null)}
+      />
+
+      <ManageDeductionsDialog
+        open={isDeductionsOpen}
+        onClose={() => setIsDeductionsOpen(false)}
+        incomeSources={incomeSources ?? []}
       />
 
       <ConfirmDialog

@@ -19,6 +19,7 @@ function fakeSummary(overrides: {
 }): BudgetSummary {
   return {
     income: fakeIncomeBreakdown(),
+    incomeSources: [],
     totalYearlyExpenses: 0,
     totalMonthlyExpenses: 0,
     categories: overrides.categories ?? [],

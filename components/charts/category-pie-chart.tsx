@@ -1,6 +1,6 @@
 "use client";
 
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import type { CategoryTotal } from "@/lib/calculations/expenses";
 import { useFormatting } from "@/hooks/use-formatting";
 import { Card } from "@/components/ui/card";
@@ -29,17 +29,26 @@ export function CategoryPieChart({ categories, colorByCategoryId }: CategoryPieC
 
   return (
     <Card>
-      <h2 className="mb-3 text-sm font-medium">Spending by category (monthly)</h2>
+      <h2 className="mb-3 text-sm font-medium">Spending by category</h2>
       <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90}>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={55}
+              outerRadius={95}
+              paddingAngle={2}
+              cornerRadius={4}
+              stroke="hsl(var(--surface))"
+              strokeWidth={2}
+            >
               {data.map((entry) => (
                 <Cell key={entry.id} fill={colorByCategoryId[entry.id] ?? "#9AA3B2"} />
               ))}
             </Pie>
             <Tooltip formatter={(value: number) => formatCurrency(value)} />
-            <Legend />
           </PieChart>
         </ResponsiveContainer>
       </div>

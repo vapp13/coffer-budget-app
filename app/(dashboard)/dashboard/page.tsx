@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -8,19 +8,27 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { useBudgetSummary } from "@/hooks/use-budget-summary";
 import { useCategories } from "@/hooks/use-categories";
 import { useExpenses } from "@/hooks/use-expenses";
+import { useIncomeSources } from "@/hooks/use-income-sources";
+import { useTaxProfile } from "@/hooks/use-tax-profile";
+import { useAllDeductions } from "@/hooks/use-all-deductions";
+import { useGoals } from "@/hooks/use-goals";
 import { useFormatting } from "@/hooks/use-formatting";
 import { useSelectedMonth } from "@/lib/date/month-provider";
 import { expenseAmountForMonth } from "@/lib/calculations/recurrence";
+import { buildMonthlySeries, monthRangeAround } from "@/lib/calculations/monthly-series";
 import { sortItems } from "@/lib/sort";
 import { deriveInsights } from "@/lib/insights";
 import { MonthPicker } from "@/components/dashboard/month-picker";
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { SummaryCardSkeleton } from "@/components/dashboard/summary-card-skeleton";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
+import { DashboardActionButtons } from "@/components/dashboard/dashboard-action-buttons";
 import { RecentTransactions, type TransactionRow } from "@/components/dashboard/recent-transactions";
+import { GoalsSummaryCard } from "@/components/dashboard/goals-summary-card";
 import { InsightsCard } from "@/components/dashboard/insights-card";
 import { CategoryPieChart } from "@/components/charts/category-pie-chart";
-import { IncomeVsExpensesChart } from "@/components/charts/income-vs-expenses-chart";
+import { CategoryLegendCard } from "@/components/charts/category-legend-card";
+import { SpendingTrendChart } from "@/components/reports/spending-trend-chart";
 import { ChartSkeleton } from "@/components/charts/chart-skeleton";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +42,11 @@ export default function DashboardPage() {
   const { summary, isLoading } = useBudgetSummary();
   const { data: categories } = useCategories();
   const { data: expenses, createExpense } = useExpenses();
-  const { formatCurrency } = useFormatting();
+  const { data: incomeSources } = useIncomeSources();
+  const { data: goals } = useGoals();
+  const { taxProfile } = useTaxProfile();
+  const { deductionsBySourceId } = useAllDeductions(incomeSources);
+  const { formatCurrency, locale } = useFormatting();
   const { selectedMonth } = useSelectedMonth();
   const [isAddOpen, setIsAddOpen] = useState(false);
 
@@ -74,6 +86,12 @@ export default function DashboardPage() {
       categoryName: categoryName(row.expense.categoryId),
       amount: row.amount,
     }));
+
+  const trendSeries = useMemo(() => {
+    if (!categories || !expenses || !incomeSources || !taxProfile) return [];
+    const months = monthRangeAround(selectedMonth, 5, 0);
+    return buildMonthlySeries(incomeSources, expenses, categories, taxProfile, months, locale, deductionsBySourceId);
+  }, [categories, expenses, incomeSources, taxProfile, selectedMonth, locale, deductionsBySourceId]);
 
   async function handleAdd(input: ExpenseInput) {
     try {
@@ -158,16 +176,21 @@ export default function DashboardPage() {
             formatCurrency={formatCurrency}
           />
 
+          <DashboardActionButtons />
+
           <div className="grid gap-4 sm:grid-cols-2">
             <CategoryPieChart
               categories={summary.categories}
               colorByCategoryId={colorByCategoryId}
             />
-            <IncomeVsExpensesChart
-              netMonthlyIncome={summary.income.net.monthly}
-              monthlyExpenses={summary.totalMonthlyExpenses}
+            <CategoryLegendCard
+              categories={summary.categories}
+              colorByCategoryId={colorByCategoryId}
+              formatCurrency={formatCurrency}
             />
           </div>
+
+          <SpendingTrendChart data={trendSeries} formatCurrency={formatCurrency} />
 
           <RecentTransactions
             title="This month's expenses"
@@ -175,25 +198,9 @@ export default function DashboardPage() {
             formatCurrency={formatCurrency}
           />
 
-          <InsightsCard insights={deriveInsights(summary)} formatCurrency={formatCurrency} />
+          {goals && <GoalsSummaryCard goals={goals} formatCurrency={formatCurrency} />}
 
-          <Card className="flex flex-col gap-3">
-            <h2 className="text-sm font-medium">Manage</h2>
-            <div className="flex gap-4 text-sm font-medium text-primary">
-              <Link href="/expenses" className="hover:underline">
-                Expenses
-              </Link>
-              <Link href="/income" className="hover:underline">
-                Income
-              </Link>
-              <Link href="/budgets" className="hover:underline">
-                Budgets
-              </Link>
-              <Link href="/reports" className="hover:underline">
-                Reports
-              </Link>
-            </div>
-          </Card>
+          <InsightsCard insights={deriveInsights(summary)} formatCurrency={formatCurrency} />
         </>
       )}
 

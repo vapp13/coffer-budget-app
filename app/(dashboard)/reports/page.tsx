@@ -7,6 +7,7 @@ import { useCategories } from "@/hooks/use-categories";
 import { useExpenses } from "@/hooks/use-expenses";
 import { useIncomeSources } from "@/hooks/use-income-sources";
 import { useTaxProfile } from "@/hooks/use-tax-profile";
+import { useAllDeductions } from "@/hooks/use-all-deductions";
 import { useFormatting } from "@/hooks/use-formatting";
 import { useSelectedMonth } from "@/lib/date/month-provider";
 import { addMonths, monthKeyFromDate, monthLabel } from "@/lib/date/month";
@@ -25,10 +26,11 @@ export default function ReportsPage() {
   const { data: expenses, isLoading: expensesLoading } = useExpenses();
   const { data: incomeSources, isLoading: incomeLoading } = useIncomeSources();
   const { taxProfile, isLoading: taxLoading } = useTaxProfile();
+  const { deductionsBySourceId, isLoading: deductionsLoading } = useAllDeductions(incomeSources);
   const { formatCurrency, locale } = useFormatting();
   const { selectedMonth } = useSelectedMonth();
 
-  const isLoading = categoriesLoading || expensesLoading || incomeLoading || taxLoading;
+  const isLoading = categoriesLoading || expensesLoading || incomeLoading || taxLoading || deductionsLoading;
   const hasData = categories && expenses && incomeSources && taxProfile;
 
   // Trend looks backward from whichever month is selected; forecast always
@@ -42,39 +44,41 @@ export default function ReportsPage() {
 
   const trendSeries = useMemo(() => {
     if (!hasData) return [];
-    return buildMonthlySeries(incomeSources, expenses, categories, taxProfile, trendMonths, locale);
-  }, [hasData, incomeSources, expenses, categories, taxProfile, trendMonths, locale]);
+    return buildMonthlySeries(incomeSources, expenses, categories, taxProfile, trendMonths, locale, deductionsBySourceId);
+  }, [hasData, incomeSources, expenses, categories, taxProfile, trendMonths, locale, deductionsBySourceId]);
 
   const forecastSeries = useMemo(() => {
     if (!hasData) return [];
-    return buildMonthlySeries(incomeSources, expenses, categories, taxProfile, forecastMonths, locale);
-  }, [hasData, incomeSources, expenses, categories, taxProfile, forecastMonths, locale]);
+    return buildMonthlySeries(incomeSources, expenses, categories, taxProfile, forecastMonths, locale, deductionsBySourceId);
+  }, [hasData, incomeSources, expenses, categories, taxProfile, forecastMonths, locale, deductionsBySourceId]);
 
   const monthOverMonth = useMemo(() => {
     if (!hasData) return null;
-    const current = calculateBudgetSummary(incomeSources, expenses, categories, taxProfile, selectedMonth);
+    const current = calculateBudgetSummary(incomeSources, expenses, categories, taxProfile, selectedMonth, deductionsBySourceId);
     const previous = calculateBudgetSummary(
       incomeSources,
       expenses,
       categories,
       taxProfile,
-      addMonths(selectedMonth, -1)
+      addMonths(selectedMonth, -1),
+      deductionsBySourceId
     );
     return compareValues(current.totalMonthlyExpenses, previous.totalMonthlyExpenses);
-  }, [hasData, incomeSources, expenses, categories, taxProfile, selectedMonth]);
+  }, [hasData, incomeSources, expenses, categories, taxProfile, selectedMonth, deductionsBySourceId]);
 
   const yearOverYear = useMemo(() => {
     if (!hasData) return null;
-    const current = calculateBudgetSummary(incomeSources, expenses, categories, taxProfile, selectedMonth);
+    const current = calculateBudgetSummary(incomeSources, expenses, categories, taxProfile, selectedMonth, deductionsBySourceId);
     const previous = calculateBudgetSummary(
       incomeSources,
       expenses,
       categories,
       taxProfile,
-      addMonths(selectedMonth, -12)
+      addMonths(selectedMonth, -12),
+      deductionsBySourceId
     );
     return compareValues(current.totalMonthlyExpenses, previous.totalMonthlyExpenses);
-  }, [hasData, incomeSources, expenses, categories, taxProfile, selectedMonth]);
+  }, [hasData, incomeSources, expenses, categories, taxProfile, selectedMonth, deductionsBySourceId]);
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
@@ -91,6 +95,9 @@ export default function ReportsPage() {
         <p className="text-sm text-muted-foreground">
           Trends, comparisons, and a look ahead, based on {monthLabel(selectedMonth, locale)}.
         </p>
+        <Link href="/breakdown" className="text-sm font-medium text-primary hover:underline">
+          View detailed breakdown →
+        </Link>
       </div>
 
       {isLoading && (

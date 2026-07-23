@@ -1,6 +1,7 @@
 import type { Expense } from "@/lib/validation/expense";
 import type { Category } from "@/lib/validation/category";
 import type { IncomeSource } from "@/lib/validation/income-source";
+import type { Deduction } from "@/lib/validation/deduction";
 import type { TaxProfileInput } from "@/lib/validation/tax-profile";
 import { calculateBudgetSummary } from "@/lib/calculations/budget-summary";
 import { addMonths, monthShortLabel, type MonthKey } from "@/lib/date/month";
@@ -35,10 +36,18 @@ export function buildMonthlySeries(
   categories: Category[],
   taxProfile: TaxProfileInput,
   months: MonthKey[],
-  locale = "en-GB"
+  locale = "en-GB",
+  deductionsBySourceId: Record<string, Deduction[]> = {}
 ): MonthlyDataPoint[] {
   return months.map((month) => {
-    const summary = calculateBudgetSummary(incomeSources, expenses, categories, taxProfile, month);
+    const summary = calculateBudgetSummary(
+      incomeSources,
+      expenses,
+      categories,
+      taxProfile,
+      month,
+      deductionsBySourceId
+    );
     return {
       month,
       label: monthShortLabel(month, locale),
