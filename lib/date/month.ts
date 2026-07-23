@@ -46,6 +46,16 @@ export function monthLabel(key: MonthKey, locale = "en-GB"): string {
   });
 }
 
+/** Compact form for chart axes and lists, e.g. "Jan '26" — always includes
+ * the year (abbreviated) since a range can cross a year boundary. */
+export function monthShortLabel(key: MonthKey, locale = "en-GB"): string {
+  const month = new Date(Date.UTC(key.year, key.month, 1)).toLocaleDateString(locale, {
+    month: "short",
+    timeZone: "UTC",
+  });
+  return `${month} '${String(key.year).slice(-2)}`;
+}
+
 export function isSameMonth(a: MonthKey, b: MonthKey): boolean {
   return compareMonths(a, b) === 0;
 }
