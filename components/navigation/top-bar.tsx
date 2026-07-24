@@ -6,6 +6,8 @@ import { Settings as SettingsIcon, LogOut, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useTheme } from "@/lib/theme/theme-provider";
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 export function TopBar() {
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -14,7 +16,9 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/90 backdrop-blur">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-3">
-        <Link href="/dashboard" className="font-display text-lg font-semibold">
+        <Link href="/dashboard" className="flex items-center gap-2 font-display text-lg font-semibold">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`${basePath}/logo.svg`} alt="" width={28} height={28} className="rounded-md" />
           Coffer
         </Link>
 

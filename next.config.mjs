@@ -3,7 +3,9 @@
 // Set by the GitHub Actions workflow to "/<repo-name>" for project pages
 // (https://username.github.io/repo-name/). Left empty for local dev, and
 // for a user/org page repo (username.github.io) which is served at the root.
-const basePath = process.env.BASE_PATH || "";
+// NEXT_PUBLIC_-prefixed so it's also inlined into the client bundle — the
+// service worker registration needs to know this client-side too.
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 const nextConfig = {
   reactStrictMode: true,

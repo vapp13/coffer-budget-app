@@ -1,0 +1,17 @@
+{
+  "name": "Coffer — Personal Finance & Budgeting",
+  "short_name": "Coffer",
+  "description": "A clear, calm way to see where your money goes — recurring expenses, income, budgets, and insights, built for real multi-month financial clarity.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0A0D0F",
+  "theme_color": "#2CAF86",
+  "icons": [
+    { "src": "favicon-32x32.png", "sizes": "32x32", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

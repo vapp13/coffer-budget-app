@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "serve out",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
@@ -40,6 +40,7 @@
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.35",
     "vitest": "^3.2.7",
-    "@types/papaparse": "^5.5.2"
+    "@types/papaparse": "^5.5.2",
+    "serve": "^14.2.3"
   }
 }
