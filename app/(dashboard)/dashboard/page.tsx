@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useBudgetSummary } from "@/hooks/use-budget-summary";
@@ -14,17 +14,13 @@ import { useAllDeductions } from "@/hooks/use-all-deductions";
 import { useGoals } from "@/hooks/use-goals";
 import { useFormatting } from "@/hooks/use-formatting";
 import { useSelectedMonth } from "@/lib/date/month-provider";
-import { expenseAmountForMonth } from "@/lib/calculations/recurrence";
 import { buildMonthlySeries, monthRangeAround } from "@/lib/calculations/monthly-series";
-import { sortItems } from "@/lib/sort";
 import { deriveInsights } from "@/lib/insights";
 import { calculateSavingsBreakdown } from "@/lib/calculations/savings";
 import { MonthPicker } from "@/components/dashboard/month-picker";
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { SummaryCardSkeleton } from "@/components/dashboard/summary-card-skeleton";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
-import { DashboardActionButtons } from "@/components/dashboard/dashboard-action-buttons";
-import { RecentTransactions, type TransactionRow } from "@/components/dashboard/recent-transactions";
 import { GoalsSummaryCard } from "@/components/dashboard/goals-summary-card";
 import { InsightsCard } from "@/components/dashboard/insights-card";
 import { CategoryPieChart } from "@/components/charts/category-pie-chart";
@@ -66,26 +62,7 @@ export default function DashboardPage() {
     summary.totalYearlyExpenses === 0;
 
   const savingsRate = summary ? calculateSavingsBreakdown(summary).savingsRate : 0;
-
-  function categoryName(categoryId: string) {
-    return categories?.find((c) => c.id === categoryId)?.name ?? "Uncategorized";
-  }
-
-  const thisMonthsExpenses: TransactionRow[] = sortItems(
-    (expenses ?? [])
-      .map((expense) => ({ expense, amount: expenseAmountForMonth(expense, selectedMonth) }))
-      .filter((row) => row.amount > 0),
-    "amount-high",
-    (row) => row.expense.description,
-    (row) => row.amount
-  )
-    .slice(0, 6)
-    .map((row) => ({
-      id: row.expense.id,
-      description: row.expense.description,
-      categoryName: categoryName(row.expense.categoryId),
-      amount: row.amount,
-    }));
+  const remainingBudget = summary ? Math.max(0, summary.remaining.monthly) : 0;
 
   const trendSeries = useMemo(() => {
     if (!categories || !expenses || !incomeSources || !taxProfile) return [];
@@ -111,6 +88,11 @@ export default function DashboardPage() {
         </p>
         <MonthPicker />
       </div>
+
+      <Button onClick={() => setIsAddOpen(true)} className="w-full sm:w-auto sm:self-start">
+        <Plus className="h-4 w-4" />
+        Add expense
+      </Button>
 
       {isLoading && (
         <div className="flex flex-col gap-6">
@@ -176,27 +158,21 @@ export default function DashboardPage() {
             formatCurrency={formatCurrency}
           />
 
-          <DashboardActionButtons />
-
           <div className="grid gap-4 sm:grid-cols-2">
             <CategoryPieChart
               categories={summary.categories}
               colorByCategoryId={colorByCategoryId}
+              remainingBudget={remainingBudget}
             />
             <CategoryLegendCard
               categories={summary.categories}
               colorByCategoryId={colorByCategoryId}
               formatCurrency={formatCurrency}
+              remainingBudget={remainingBudget}
             />
           </div>
 
           <SpendingTrendChart data={trendSeries} formatCurrency={formatCurrency} />
-
-          <RecentTransactions
-            title="This month's expenses"
-            items={thisMonthsExpenses}
-            formatCurrency={formatCurrency}
-          />
 
           {goals && <GoalsSummaryCard goals={goals} formatCurrency={formatCurrency} />}
 
