@@ -122,9 +122,9 @@ describe("category rollups — match Budget_2026.xlsx 'Expense Breakdown' block"
     expect(categoryYearly("Savings")).toBeCloseTo(3600, 2);
   });
 
-  it("Mortgage's percentage of net income (spreadsheet D3 = 0.2507054977)", () => {
+  it("Mortgage's percentage of net income (recomputed after removing automatic pension — net income is now higher than the original spreadsheet assumed)", () => {
     const mortgage = summary.categories.find((c) => c.categoryName === "Mortgage");
-    expect(mortgage?.percentageOfIncome).toBeCloseTo(0.2507054977, 6);
+    expect(mortgage?.percentageOfIncome).toBeCloseTo(0.2276042970729197, 6);
   });
 });
 
@@ -136,8 +136,8 @@ describe("remaining budget — matches Budget_2026.xlsx 'Remaining' row", () => 
     expect(summary.totalYearlyExpenses).toBeCloseTo(31333.37, 1);
   });
 
-  it("remaining as a percentage of net income (spreadsheet D14 = 0.149457)", () => {
-    expect(summary.remaining.percentageOfIncome).toBeCloseTo(0.149457, 5);
+  it("remaining as a percentage of net income (recomputed after removing automatic pension)", () => {
+    expect(summary.remaining.percentageOfIncome).toBeCloseTo(0.2278297869404155, 5);
   });
 });
 

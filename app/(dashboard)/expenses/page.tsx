@@ -189,7 +189,7 @@ export default function ExpensesPage() {
         </div>
         <Button onClick={openAddModal}>
           <Plus className="h-4 w-4" />
-          Add
+          Add Expenses
         </Button>
       </div>
 

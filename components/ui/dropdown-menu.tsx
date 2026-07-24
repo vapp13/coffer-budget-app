@@ -42,6 +42,7 @@ export function DropdownMenu<T extends string>({
             {options.map((option) => (
               <button
                 key={option.value}
+                type="button"
                 onClick={() => {
                   onChange(option.value);
                   setIsOpen(false);

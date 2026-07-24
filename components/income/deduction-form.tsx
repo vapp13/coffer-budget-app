@@ -44,7 +44,16 @@ export function DeductionForm({
   const type = watch("type");
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className="flex flex-col gap-4"
+      onKeyDown={(event) => {
+        // Deduction fields live inside IncomeSourceForm's own <form> — Enter
+        // in a text/number input implicitly submits the nearest form, which
+        // would prematurely submit the income source. Block that here; the
+        // explicit Cancel/Save buttons are the only way to act on this form.
+        if (event.key === "Enter") event.preventDefault();
+      }}
+    >
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1">
           <Label htmlFor="type">Type</Label>

@@ -1,7 +1,7 @@
 import type { IncomeSource } from "@/lib/validation/income-source";
-import type { Deduction } from "@/lib/validation/deduction";
+import { deductionDisplayLabel, type Deduction } from "@/lib/validation/deduction";
 import type { TaxProfileInput } from "@/lib/validation/tax-profile";
-import { calculateIncomeBreakdown, timeUnitSplit, type IncomeBreakdown } from "@/lib/calculations/income-tax";
+import { calculateMonthlyIncomeTax, calculateMonthlyNationalInsurance, timeUnitSplit, type IncomeBreakdown } from "@/lib/calculations/income-tax";
 import { round2 } from "@/lib/calculations/math-helpers";
 import { monthRange, type MonthKey } from "@/lib/date/month";
 
@@ -33,58 +33,87 @@ export function totalGrossYearlyIncomeForMonth(
   );
 }
 
+export type DeductionLineItem = {
+  label: string;
+  /** Monthly amount for this specific line. */
+  amount: number;
+  source: "manual" | "automatic";
+};
+
 export type IncomeSourceBreakdown = {
   incomeSourceId: string;
   label: string;
   grossYearly: number;
   netYearly: number;
   deductionsYearly: number;
-  /** True if this source's net comes from the user's own entered deductions
-   * rather than the automatic UK tax/NI/pension estimate. */
-  usingManualDeductions: boolean;
+  /** Itemized monthly deduction lines: PAYE and National Insurance always
+   * appear (manual if entered, automatic estimate otherwise), plus any
+   * other manual deductions (pension, student loan, etc). There is no
+   * automatic pension line — pension is only ever a manual entry. */
+  deductionLines: DeductionLineItem[];
 };
 
 /**
- * Net for one income source: uses the user's manually-entered deductions if
- * any exist, otherwise falls back to the automatic UK estimate — so nothing
- * breaks for sources that predate the Deductions feature, and the app still
- * works reasonably before a user bothers entering their own figures.
+ * Net for one income source, mixing manual and automatic deductions at the
+ * individual PAYE/National Insurance level rather than all-or-nothing:
+ * - If the user has manually entered a PAYE deduction, that value is used;
+ *   otherwise PAYE is automatically estimated.
+ * - Same independently for National Insurance.
+ * - Any other manual deductions (pension, student loan, etc.) are simply
+ *   added — there's no automatic equivalent to override for these.
+ * This means adding a manual PAYE entry doesn't hide the automatic NI
+ * estimate, and vice versa (see the deductions-mixing tests).
  */
 export function calculateIncomeSourceBreakdown(
   source: IncomeSource,
   deductions: Deduction[],
   taxProfile: TaxProfileInput
 ): IncomeSourceBreakdown {
-  if (deductions.length > 0) {
-    const deductionsMonthly = round2(deductions.reduce((sum, d) => sum + d.amount, 0));
-    const deductionsYearly = round2(deductionsMonthly * 12);
-    return {
-      incomeSourceId: source.id,
-      label: source.label,
-      grossYearly: source.grossYearlyAmount,
-      netYearly: round2(source.grossYearlyAmount - deductionsYearly),
-      deductionsYearly,
-      usingManualDeductions: true,
-    };
-  }
+  const manualPaye = deductions.filter((d) => d.type === "paye");
+  const manualNi = deductions.filter((d) => d.type === "national_insurance");
+  const otherManual = deductions.filter((d) => d.type !== "paye" && d.type !== "national_insurance");
 
-  const estimate = calculateIncomeBreakdown(source.grossYearlyAmount, taxProfile);
+  const hasManualPaye = manualPaye.length > 0;
+  const hasManualNi = manualNi.length > 0;
+
+  const payeMonthly = hasManualPaye
+    ? round2(manualPaye.reduce((sum, d) => sum + d.amount, 0))
+    : calculateMonthlyIncomeTax(source.grossYearlyAmount, taxProfile);
+
+  const niMonthly = hasManualNi
+    ? round2(manualNi.reduce((sum, d) => sum + d.amount, 0))
+    : calculateMonthlyNationalInsurance(source.grossYearlyAmount, taxProfile);
+
+  const otherMonthly = round2(otherManual.reduce((sum, d) => sum + d.amount, 0));
+
+  const deductionLines: DeductionLineItem[] = [
+    { label: "PAYE", amount: payeMonthly, source: hasManualPaye ? "manual" : "automatic" },
+    { label: "National Insurance", amount: niMonthly, source: hasManualNi ? "manual" : "automatic" },
+    ...otherManual.map((d) => ({
+      label: deductionDisplayLabel(d),
+      amount: d.amount,
+      source: "manual" as const,
+    })),
+  ];
+
+  const deductionsMonthly = round2(payeMonthly + niMonthly + otherMonthly);
+  const deductionsYearly = round2(deductionsMonthly * 12);
+
   return {
     incomeSourceId: source.id,
     label: source.label,
     grossYearly: source.grossYearlyAmount,
-    netYearly: estimate.net.yearly,
-    deductionsYearly: estimate.deductions.totalYearly,
-    usingManualDeductions: false,
+    netYearly: round2(source.grossYearlyAmount - deductionsYearly),
+    deductionsYearly,
+    deductionLines,
   };
 }
 
 /**
  * Combines every active income source's own gross/net (each computed
- * independently — manual deductions where entered, the automatic estimate
- * otherwise) into one IncomeBreakdown, so the rest of the app doesn't need
- * to know or care how many sources there are or how each one's net was
- * derived.
+ * independently via calculateIncomeSourceBreakdown) into one IncomeBreakdown,
+ * so the rest of the app doesn't need to know or care how many sources
+ * there are or how each one's net was derived.
  */
 export function calculateCombinedIncomeForMonth(
   incomeSources: IncomeSource[],
@@ -105,12 +134,6 @@ export function calculateCombinedIncomeForMonth(
     gross: timeUnitSplit(totalGrossYearly),
     net: timeUnitSplit(totalNetYearly),
     deductions: {
-      // Not meaningful as separate figures once sources can mix manual
-      // deductions with the automatic estimate — the combined total is
-      // still accurate and is what every consumer actually uses.
-      monthlyTax: 0,
-      monthlyNationalInsurance: 0,
-      monthlyPension: 0,
       totalMonthly: round2(totalDeductionsYearly / 12),
       totalYearly: totalDeductionsYearly,
     },

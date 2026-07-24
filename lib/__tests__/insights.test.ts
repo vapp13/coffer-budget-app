@@ -8,7 +8,7 @@ function fakeIncomeBreakdown() {
   return {
     gross: split,
     net: split,
-    deductions: { monthlyTax: 0, monthlyNationalInsurance: 0, monthlyPension: 0, totalMonthly: 0, totalYearly: 0 },
+    deductions: { totalMonthly: 0, totalYearly: 0 },
   };
 }
 

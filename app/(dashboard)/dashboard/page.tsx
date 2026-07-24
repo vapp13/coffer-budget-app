@@ -91,7 +91,7 @@ export default function DashboardPage() {
 
       <Button onClick={() => setIsAddOpen(true)} className="w-full sm:w-auto sm:self-start">
         <Plus className="h-4 w-4" />
-        Add expense
+        Add Expenses
       </Button>
 
       {isLoading && (

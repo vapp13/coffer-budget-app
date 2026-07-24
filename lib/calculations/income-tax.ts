@@ -2,17 +2,6 @@ import type { TaxProfileInput } from "@/lib/validation/tax-profile";
 import { median3, round2, WEEKS_PER_YEAR, WORKING_DAYS_PER_YEAR, WORKING_HOURS_PER_YEAR } from "@/lib/calculations/math-helpers";
 
 /**
- * Monthly pension contribution, deducted from gross before tax is calculated.
- * Spreadsheet: D22 = ROUND((B18/12) * B54, 2)
- */
-export function calculateMonthlyPension(
-  yearlyGross: number,
-  taxProfile: Pick<TaxProfileInput, "pensionRate">
-): number {
-  return round2((yearlyGross / 12) * taxProfile.pensionRate);
-}
-
-/**
  * Monthly National Insurance.
  * Spreadsheet: D21 = ROUND(MAX(0, (B18/12) - (B52/12)) * B53, 2)
  */
@@ -30,15 +19,17 @@ export function calculateMonthlyNationalInsurance(
  * cap and clamping the taxable pay into each band with MEDIAN(0, cap, amount).
  * Spreadsheet: D20 (the three-MEDIAN/MAX formula).
  *
- * Taxable pay here is gross minus pension (matches the spreadsheet's
- * definition — it does not separately apply the personal allowance because
- * the PAYE band minimums already encode it).
+ * Taxable pay is the full monthly gross — this deliberately does not assume
+ * or subtract any pension contribution, since pension is no longer an
+ * automatic deduction (not every user has one, and assuming one reduced
+ * accuracy for those who don't). A user with a manually-entered pension
+ * deduction has it reflected in their total deductions, just not fed back
+ * into this tax calculation.
  */
 export function calculateMonthlyIncomeTax(
   yearlyGross: number,
   taxProfile: Pick<
     TaxProfileInput,
-    | "pensionRate"
     | "payeBasicRate"
     | "payeHigherRate"
     | "payeAdditionalRate"
@@ -49,9 +40,7 @@ export function calculateMonthlyIncomeTax(
     | "additionalRateOver"
   >
 ): number {
-  const monthlyGross = yearlyGross / 12;
-  const monthlyPension = round2(monthlyGross * taxProfile.pensionRate);
-  const taxableMonthly = monthlyGross - monthlyPension;
+  const taxableMonthly = yearlyGross / 12;
 
   const basicBandWidth =
     (taxProfile.payeBasicMax - taxProfile.payeBasicMin + 1) / 12;
@@ -85,9 +74,6 @@ export type IncomeBreakdown = {
   gross: { yearly: number; monthly: number; weekly: number; daily: number; hourly: number };
   net: { yearly: number; monthly: number; weekly: number; daily: number; hourly: number };
   deductions: {
-    monthlyTax: number;
-    monthlyNationalInsurance: number;
-    monthlyPension: number;
     totalMonthly: number;
     totalYearly: number;
   };
@@ -106,6 +92,7 @@ export function timeUnitSplit(yearlyAmount: number) {
 /**
  * Full income breakdown for one yearly gross salary: gross/net split across
  * yearly/monthly/weekly/daily/hourly, mirroring rows 27–31 of the spreadsheet.
+ * Automatic deductions are PAYE and National Insurance only — no pension.
  */
 export function calculateIncomeBreakdown(
   yearlyGross: number,
@@ -113,8 +100,7 @@ export function calculateIncomeBreakdown(
 ): IncomeBreakdown {
   const monthlyTax = calculateMonthlyIncomeTax(yearlyGross, taxProfile);
   const monthlyNationalInsurance = calculateMonthlyNationalInsurance(yearlyGross, taxProfile);
-  const monthlyPension = calculateMonthlyPension(yearlyGross, taxProfile);
-  const totalMonthly = round2(monthlyTax + monthlyNationalInsurance + monthlyPension);
+  const totalMonthly = round2(monthlyTax + monthlyNationalInsurance);
   const totalYearly = round2(totalMonthly * 12);
   const yearlyNet = yearlyGross - totalYearly;
 
@@ -122,9 +108,6 @@ export function calculateIncomeBreakdown(
     gross: timeUnitSplit(yearlyGross),
     net: timeUnitSplit(yearlyNet),
     deductions: {
-      monthlyTax,
-      monthlyNationalInsurance,
-      monthlyPension,
       totalMonthly,
       totalYearly,
     },

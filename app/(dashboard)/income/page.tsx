@@ -172,7 +172,7 @@ export default function IncomePage() {
         </div>
         <Button onClick={openAddModal}>
           <Plus className="h-4 w-4" />
-          Add
+          Add Income
         </Button>
       </div>
 

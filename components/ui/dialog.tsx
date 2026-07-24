@@ -31,6 +31,7 @@ export function Dialog({ open, onClose, title, children }: DialogProps) {
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold">{title}</h2>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close"
             className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
