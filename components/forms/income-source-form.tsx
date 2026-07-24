@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -11,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label, FieldError } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { IncomeDeductionsSection } from "@/components/income/income-deductions-section";
+import type { Deduction, DeductionInput } from "@/lib/validation/deduction";
 
 // Dates arrive as yyyy-mm-dd strings when editing (native date inputs need
 // a string, not a Date object) — see lib/date-input-value.ts.
@@ -20,13 +23,18 @@ type IncomeSourceFormDefaults = Partial<Omit<IncomeSourceInput, "effectiveFrom" 
 };
 
 type IncomeSourceFormProps = {
+  /** Present when editing an existing income source — enables live deduction
+   * management. Absent when creating a new one — deductions are held as
+   * local drafts until the income source itself is saved and gets an id. */
+  incomeSourceId?: string;
   defaultValues?: IncomeSourceFormDefaults;
-  onSubmit: (input: IncomeSourceInput) => void | Promise<void>;
+  onSubmit: (input: IncomeSourceInput, draftDeductions: DeductionInput[]) => void | Promise<void>;
   isSubmitting?: boolean;
   submitLabel?: string;
 };
 
 export function IncomeSourceForm({
+  incomeSourceId,
   defaultValues,
   onSubmit,
   isSubmitting,
@@ -35,6 +43,7 @@ export function IncomeSourceForm({
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
     reset,
   } = useForm<IncomeSourceInput>({
@@ -45,9 +54,16 @@ export function IncomeSourceForm({
     } as unknown as IncomeSourceInput,
   });
 
+  const [draftDeductions, setDraftDeductions] = useState<Deduction[]>([]);
+  const grossYearlyAmount = Number(watch("grossYearlyAmount")) || 0;
+
   async function submit(values: IncomeSourceInput) {
-    await onSubmit(values);
+    await onSubmit(
+      values,
+      draftDeductions.map(({ id: _id, ...input }) => input)
+    );
     reset({ source: "other" } as unknown as IncomeSourceInput);
+    setDraftDeductions([]);
   }
 
   return (
@@ -106,6 +122,17 @@ export function IncomeSourceForm({
           <FieldError message={errors.effectiveTo?.message} />
         </div>
       </div>
+
+      {incomeSourceId ? (
+        <IncomeDeductionsSection mode="live" incomeSourceId={incomeSourceId} grossYearlyAmount={grossYearlyAmount} />
+      ) : (
+        <IncomeDeductionsSection
+          mode="draft"
+          draftDeductions={draftDeductions}
+          onDraftsChange={setDraftDeductions}
+          grossYearlyAmount={grossYearlyAmount}
+        />
+      )}
 
       <Button type="submit" disabled={isSubmitting}>
         {isSubmitting ? "Saving…" : submitLabel}

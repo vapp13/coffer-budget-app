@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Wallet, ArrowUpDown, LayoutGrid, ReceiptText } from "lucide-react";
+import { ArrowLeft, Plus, Wallet, ArrowUpDown, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth/auth-context";
 import { useIncomeSources } from "@/hooks/use-income-sources";
 import { useFormatting } from "@/hooks/use-formatting";
 import { IncomeSourceForm } from "@/components/forms/income-source-form";
 import { IncomeItem } from "@/components/income/income-item";
 import { IncomeDetailsModal } from "@/components/income/income-details-modal";
-import { ManageDeductionsDialog } from "@/components/income/manage-deductions-dialog";
+import { addDeduction } from "@/lib/data/deductions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -20,6 +21,7 @@ import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SORT_OPTIONS, sortItems, type SortOption } from "@/lib/sort";
 import { groupBy } from "@/lib/group-by";
 import { toDateInputValue } from "@/lib/date-input-value";
+import type { DeductionInput } from "@/lib/validation/deduction";
 import {
   INCOME_SOURCE_TYPE_LABELS,
   resolveIncomeSourceType,
@@ -36,6 +38,7 @@ const VIEW_OPTIONS: { value: ViewOption; label: string }[] = [
 ];
 
 export default function IncomePage() {
+  const { user } = useAuth();
   const {
     data: incomeSources,
     isLoading,
@@ -49,7 +52,6 @@ export default function IncomePage() {
   const [view, setView] = useState<ViewOption>("list");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isDeductionsOpen, setIsDeductionsOpen] = useState(false);
   const [editingIncome, setEditingIncome] = useState<IncomeSource | null>(null);
   const [viewingIncome, setViewingIncome] = useState<IncomeSource | null>(null);
   const [deletingIncome, setDeletingIncome] = useState<IncomeSource | null>(null);
@@ -65,18 +67,38 @@ export default function IncomePage() {
     setIsFormOpen(true);
   }
 
-  async function handleFormSubmit(input: IncomeSourceInput) {
+  async function handleFormSubmit(input: IncomeSourceInput, draftDeductions: DeductionInput[]) {
     try {
       if (editingIncome) {
         await editIncomeSource.mutateAsync({ id: editingIncome.id, input });
         toast.success("Income source updated");
       } else {
-        await createIncomeSource.mutateAsync(input);
+        const newId = await createIncomeSource.mutateAsync(input);
         toast.success("Income source added");
+
+        if (draftDeductions.length > 0 && user) {
+          try {
+            for (const draft of draftDeductions) {
+              await addDeduction(user.uid, newId, draft);
+            }
+          } catch (error) {
+            // The income source itself was created successfully — only the
+            // deductions failed, so this needs its own message rather than
+            // being reported (misleadingly) as the income source failing.
+            console.error("Failed to save deductions for new income source:", error);
+            const code = (error as { code?: string })?.code;
+            toast.error(
+              code === "permission-denied"
+                ? "Income source saved, but deductions couldn't be added — your Firestore security rules may need updating."
+                : "Income source saved, but one or more deductions couldn't be added — try adding them again by editing this income source."
+            );
+          }
+        }
       }
       setIsFormOpen(false);
       setEditingIncome(null);
-    } catch {
+    } catch (error) {
+      console.error("Failed to save income source:", error);
       toast.error(
         editingIncome ? "Couldn't update that income source — try again." : "Couldn't add that income source — try again."
       );
@@ -148,16 +170,10 @@ export default function IncomePage() {
           <h1 className="font-display text-xl font-semibold">Income</h1>
           <p className="text-sm text-muted-foreground">Gross yearly income sources.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsDeductionsOpen(true)}>
-            <ReceiptText className="h-4 w-4" />
-            Deductions
-          </Button>
-          <Button onClick={openAddModal}>
-            <Plus className="h-4 w-4" />
-            Add
-          </Button>
-        </div>
+        <Button onClick={openAddModal}>
+          <Plus className="h-4 w-4" />
+          Add
+        </Button>
       </div>
 
       {!isLoading && incomeSources && incomeSources.length > 0 && (
@@ -248,6 +264,7 @@ export default function IncomePage() {
         title={editingIncome ? "Edit income source" : "Add an income source"}
       >
         <IncomeSourceForm
+          incomeSourceId={editingIncome?.id}
           defaultValues={editDefaultValues}
           onSubmit={handleFormSubmit}
           isSubmitting={createIncomeSource.isPending || editIncomeSource.isPending}
@@ -260,12 +277,6 @@ export default function IncomePage() {
         formatCurrency={formatCurrency}
         formatDate={formatDate}
         onClose={() => setViewingIncome(null)}
-      />
-
-      <ManageDeductionsDialog
-        open={isDeductionsOpen}
-        onClose={() => setIsDeductionsOpen(false)}
-        incomeSources={incomeSources ?? []}
       />
 
       <ConfirmDialog

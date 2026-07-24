@@ -16,6 +16,14 @@ type DeductionFormProps = {
   submitLabel?: string;
 };
 
+/**
+ * Deliberately NOT a <form> element. This is always embedded inside
+ * IncomeSourceForm's own <form>, and a nested <form> is invalid HTML —
+ * browsers resolve nested-form submit events unpredictably, which is what
+ * caused deductions to silently fail to save. react-hook-form's
+ * handleSubmit works fine bound to a plain button's onClick instead of a
+ * form's onSubmit, so that's what triggers validation + submission here.
+ */
 export function DeductionForm({
   defaultValues,
   onSubmit,
@@ -36,7 +44,7 @@ export function DeductionForm({
   const type = watch("type");
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4 rounded-lg border border-border p-4">
+    <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1">
           <Label htmlFor="type">Type</Label>
@@ -74,10 +82,10 @@ export function DeductionForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="button" onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
           {isSubmitting ? "Saving…" : submitLabel}
         </Button>
       </div>
-    </form>
+    </div>
   );
 }

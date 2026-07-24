@@ -149,6 +149,20 @@ export default function DashboardPage() {
               label="Savings rate"
               value={savingsRate * 100}
               formatValue={(v) => `${v.toFixed(1)}%`}
+              info={
+                <>
+                  <p className="mb-1">
+                    How much of your net income is being saved or left unallocated each month.
+                  </p>
+                  <p className="mb-1 font-medium text-foreground">
+                    Formula: (Savings category spend + unallocated remaining budget) ÷ net monthly income × 100
+                  </p>
+                  <p>
+                    This includes any expenses categorized as "Savings," plus any leftover budget
+                    you haven't spent — money not spent counts as saved.
+                  </p>
+                </>
+              }
             />
           </div>
 

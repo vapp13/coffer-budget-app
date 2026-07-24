@@ -20,6 +20,23 @@ npm test
 npm run build
 ```
 
+## Firestore security rules — redeploy whenever they change
+
+`firestore.rules` in this repo is just a text file — editing it here has
+**no effect on your live Firebase project** until you manually republish it.
+Whenever this file changes (new collections/subcollections, changed access
+rules), copy its contents into **Firebase console → Firestore Database →
+Rules → paste → Publish** (or run `firebase deploy --only firestore:rules`
+if you use the Firebase CLI).
+
+This is easy to miss because the symptom looks like a bug — a Firestore
+write fails with a `permission-denied` error even though the code and the
+rules file both look correct, simply because the live project is still
+running an older version of the rules. If a save ever fails unexpectedly,
+checking the browser console for `permission-denied` and comparing the
+current `firestore.rules` against what's published in the Firebase console
+is the first thing worth checking.
+
 ## Hosting on GitHub Pages (one-time setup)
 
 This app is a pure client-side app (Firebase Auth + Firestore, no server
