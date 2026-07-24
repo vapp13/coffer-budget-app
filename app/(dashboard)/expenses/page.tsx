@@ -2,20 +2,21 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Receipt, ArrowUpDown, LayoutGrid, Archive } from "lucide-react";
+import { ArrowLeft, Plus, Receipt, ArrowUpDown, LayoutGrid, Archive, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useExpenses } from "@/hooks/use-expenses";
 import { useCategories } from "@/hooks/use-categories";
 import { useFormatting } from "@/hooks/use-formatting";
+import { useUndoableDelete } from "@/hooks/use-undoable-delete";
 import { ExpenseForm } from "@/components/forms/expense-form";
 import { ExpenseItem } from "@/components/expenses/expense-item";
 import { ExpenseDetailsModal } from "@/components/expenses/expense-details-modal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListRowSkeleton } from "@/components/ui/list-row-skeleton";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SORT_OPTIONS, sortItems, type SortOption } from "@/lib/sort";
 import { groupBy } from "@/lib/group-by";
@@ -53,18 +54,23 @@ export default function ExpensesPage() {
   const { data: categories } = useCategories();
   const { formatCurrency, formatDate } = useFormatting();
 
+  const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortOption>("az");
   const [view, setView] = useState<ViewOption>("list");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
-  const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   function categoryName(categoryId: string) {
     return categories?.find((c) => c.id === categoryId)?.name ?? "Uncategorized";
   }
+
+  const { isPending: isPendingDelete, deleteWithUndo } = useUndoableDelete<Expense>({
+    onCommit: (expense) => removeExpense.mutateAsync(expense.id),
+    getMessage: (expense) => `Removed "${expense.description}"`,
+    getErrorMessage: (expense) => `Couldn't remove "${expense.description}" — try again.`,
+  });
 
   function openAddModal() {
     setEditingExpense(null);
@@ -92,24 +98,15 @@ export default function ExpensesPage() {
     }
   }
 
-  async function handleConfirmDelete() {
-    if (!deletingExpense) return;
-    setIsDeleting(true);
-    try {
-      await removeExpense.mutateAsync(deletingExpense.id);
-      toast.success(`Removed "${deletingExpense.description}"`);
-      setDeletingExpense(null);
-    } catch {
-      toast.error("Couldn't remove that expense — try again.");
-    } finally {
-      setIsDeleting(false);
-    }
-  }
-
   async function handleArchive(expense: Expense) {
     try {
       await archiveExpense.mutateAsync(expense.id);
-      toast.success(`Archived "${expense.description}"`);
+      toast(`Archived "${expense.description}"`, {
+        action: {
+          label: "Undo",
+          onClick: () => restoreExpense.mutate(expense.id),
+        },
+      });
     } catch {
       toast.error("Couldn't archive that expense — try again.");
     }
@@ -124,8 +121,19 @@ export default function ExpensesPage() {
     }
   }
 
-  const activeExpenses = (expenses ?? []).filter((e) => e.isActive);
-  const archivedExpenses = (expenses ?? []).filter((e) => !e.isActive);
+  function matchesQuery(expense: Expense) {
+    if (!query.trim()) return true;
+    const q = query.trim().toLowerCase();
+    return (
+      expense.description.toLowerCase().includes(q) ||
+      categoryName(expense.categoryId).toLowerCase().includes(q) ||
+      (expense.notes ?? "").toLowerCase().includes(q)
+    );
+  }
+
+  const notDeleting = (e: Expense) => !isPendingDelete(e.id);
+  const activeExpenses = (expenses ?? []).filter((e) => e.isActive && notDeleting(e) && matchesQuery(e));
+  const archivedExpenses = (expenses ?? []).filter((e) => !e.isActive && notDeleting(e) && matchesQuery(e));
 
   const sortedExpenses = sortItems(
     activeExpenses,
@@ -133,6 +141,8 @@ export default function ExpensesPage() {
     (e) => e.description,
     (e) => e.unitCost
   );
+
+  const hasAnyExpenses = (expenses ?? []).length > 0;
 
   const editDefaultValues = editingExpense
     ? {
@@ -163,7 +173,7 @@ export default function ExpensesPage() {
             onViewDetails={() => setViewingExpense(expense)}
             onEdit={() => openEditModal(expense)}
             onArchive={() => (options.archived ? handleRestore(expense) : handleArchive(expense))}
-            onDelete={() => setDeletingExpense(expense)}
+            onDelete={() => deleteWithUndo(expense)}
           />
         ))}
       </ul>
@@ -193,22 +203,45 @@ export default function ExpensesPage() {
         </Button>
       </div>
 
-      {!isLoading && activeExpenses.length > 0 && (
-        <div className="flex flex-wrap gap-3">
-          <DropdownMenu
-            label="Sort"
-            icon={ArrowUpDown}
-            options={SORT_OPTIONS}
-            value={sort}
-            onChange={setSort}
-          />
-          <DropdownMenu
-            label="View"
-            icon={LayoutGrid}
-            options={VIEW_OPTIONS}
-            value={view}
-            onChange={setView}
-          />
+      {!isLoading && hasAnyExpenses && (
+        <div className="flex flex-col gap-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search expenses…"
+              className="pl-9 pr-9"
+              aria-label="Search expenses"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <DropdownMenu
+              label="Sort"
+              icon={ArrowUpDown}
+              options={SORT_OPTIONS}
+              value={sort}
+              onChange={setSort}
+            />
+            <DropdownMenu
+              label="View"
+              icon={LayoutGrid}
+              options={VIEW_OPTIONS}
+              value={view}
+              onChange={setView}
+            />
+          </div>
         </div>
       )}
 
@@ -222,7 +255,7 @@ export default function ExpensesPage() {
         </Card>
       )}
 
-      {!isLoading && activeExpenses.length === 0 && (
+      {!isLoading && !hasAnyExpenses && (
         <Card className="p-0">
           <EmptyState
             icon={Receipt}
@@ -232,6 +265,16 @@ export default function ExpensesPage() {
           />
         </Card>
       )}
+
+      {!isLoading &&
+        hasAnyExpenses &&
+        sortedExpenses.length === 0 &&
+        archivedExpenses.length === 0 &&
+        query && (
+          <Card className="p-0">
+            <EmptyState icon={Search} title="No matches" description={`Nothing matches "${query}".`} />
+          </Card>
+        )}
 
       {!isLoading && sortedExpenses.length > 0 && view === "list" && (
         <Card className="p-0">{renderList(sortedExpenses)}</Card>
@@ -250,7 +293,7 @@ export default function ExpensesPage() {
               onViewDetails={() => setViewingExpense(expense)}
               onEdit={() => openEditModal(expense)}
               onArchive={() => handleArchive(expense)}
-              onDelete={() => setDeletingExpense(expense)}
+              onDelete={() => deleteWithUndo(expense)}
             />
           ))}
         </div>
@@ -325,19 +368,6 @@ export default function ExpensesPage() {
         formatCurrency={formatCurrency}
         formatDate={formatDate}
         onClose={() => setViewingExpense(null)}
-      />
-
-      <ConfirmDialog
-        open={!!deletingExpense}
-        title="Remove this expense?"
-        description={
-          deletingExpense
-            ? `"${deletingExpense.description}" will be permanently removed. This can't be undone.`
-            : ""
-        }
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setDeletingExpense(null)}
-        isConfirming={isDeleting}
       />
     </main>
   );

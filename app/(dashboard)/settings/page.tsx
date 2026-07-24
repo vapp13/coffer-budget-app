@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { LogOut, UploadCloud } from "lucide-react";
+import { LogOut, UploadCloud, DownloadCloud } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useTheme, resolveSystemTheme } from "@/lib/theme/theme-provider";
+import { exportAllUserData } from "@/lib/data/export-all-data";
+import { downloadTextFile } from "@/lib/download-text-file";
 import {
   userProfileFormSchema,
   CURRENCY_OPTIONS,
@@ -26,6 +28,7 @@ export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const { data: profile, isLoading, saveProfile } = useUserProfile();
   const { setTheme } = useTheme();
+  const [isExporting, setIsExporting] = useState(false);
 
   const {
     register,
@@ -58,6 +61,21 @@ export default function SettingsPage() {
       toast.success("Settings saved");
     } catch {
       toast.error("Couldn't save your settings — try again.");
+    }
+  }
+
+  async function handleExportBackup() {
+    if (!user) return;
+    setIsExporting(true);
+    try {
+      const data = await exportAllUserData(user.uid);
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      downloadTextFile(`coffer-backup-${dateStamp}.json`, JSON.stringify(data, null, 2), "application/json");
+      toast.success("Backup downloaded");
+    } catch {
+      toast.error("Couldn't create a backup — try again.");
+    } finally {
+      setIsExporting(false);
     }
   }
 
@@ -187,6 +205,19 @@ export default function SettingsPage() {
             <UploadCloud className="h-4 w-4" />
             Import &amp; export data
           </Link>
+          <button
+            type="button"
+            onClick={handleExportBackup}
+            disabled={isExporting}
+            className="flex items-center gap-2 text-sm font-medium text-primary hover:underline disabled:opacity-60"
+          >
+            <DownloadCloud className="h-4 w-4" />
+            {isExporting ? "Preparing backup…" : "Download full backup (JSON)"}
+          </button>
+          <p className="text-xs text-muted-foreground">
+            Everything you've stored — income, expenses, categories, budgets, goals, and
+            deductions — in one file, for safekeeping or moving your data elsewhere.
+          </p>
         </Card>
       )}
 

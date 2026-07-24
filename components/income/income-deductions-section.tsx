@@ -5,10 +5,10 @@ import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeductionRow } from "@/components/income/deduction-row";
 import { DeductionForm } from "@/components/income/deduction-form";
 import { useDeductions } from "@/hooks/use-deductions";
+import { useUndoableDelete } from "@/hooks/use-undoable-delete";
 import { useFormatting } from "@/hooks/use-formatting";
 import type { Deduction, DeductionInput } from "@/lib/validation/deduction";
 
@@ -53,14 +53,22 @@ export function IncomeDeductionsSection(props: IncomeDeductionsSectionProps) {
     removeDeduction,
   } = useDeductions(liveIncomeSourceId);
 
+  // Only ever invoked in "live" mode — draft-mode removal just filters the
+  // local array directly, since nothing's persisted yet to undo.
+  const { isPending: isPendingLiveDelete, deleteWithUndo: deleteLiveWithUndo } = useUndoableDelete<Deduction>({
+    onCommit: (deduction) => removeDeduction.mutateAsync(deduction.id),
+    getMessage: () => "Deduction removed",
+    getErrorMessage: (_deduction, error) => deductionErrorMessage(error, "remove"),
+  });
+
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  const deductions: Deduction[] = props.mode === "live" ? liveDeductions ?? [] : props.draftDeductions;
+  const deductions: Deduction[] =
+    props.mode === "live"
+      ? (liveDeductions ?? []).filter((d) => !isPendingLiveDelete(d.id))
+      : props.draftDeductions;
   const editingDeduction = editingId ? deductions.find((d) => d.id === editingId) ?? null : null;
-  const deletingDeduction = deletingId ? deductions.find((d) => d.id === deletingId) ?? null : null;
 
   function closeForm() {
     setIsAdding(false);
@@ -95,26 +103,12 @@ export function IncomeDeductionsSection(props: IncomeDeductionsSectionProps) {
     closeForm();
   }
 
-  async function handleConfirmDelete() {
-    if (!deletingDeduction) return;
-
+  function handleDelete(deduction: Deduction) {
     if (props.mode === "live") {
-      setIsDeleting(true);
-      try {
-        await removeDeduction.mutateAsync(deletingDeduction.id);
-        toast.success("Deduction removed");
-        setDeletingId(null);
-      } catch (error) {
-        console.error("Failed to remove deduction:", error);
-        toast.error(deductionErrorMessage(error, "remove"));
-      } finally {
-        setIsDeleting(false);
-      }
-      return;
+      deleteLiveWithUndo(deduction);
+    } else {
+      props.onDraftsChange(deductions.filter((d) => d.id !== deduction.id));
     }
-
-    props.onDraftsChange(deductions.filter((d) => d.id !== deletingDeduction.id));
-    setDeletingId(null);
   }
 
   const isSubmittingLive = props.mode === "live" && (createDeduction.isPending || editDeduction.isPending);
@@ -145,7 +139,7 @@ export function IncomeDeductionsSection(props: IncomeDeductionsSectionProps) {
                 setEditingId(deduction.id);
                 setIsAdding(false);
               }}
-              onDelete={() => setDeletingId(deduction.id)}
+              onDelete={() => handleDelete(deduction)}
             />
           ))}
         </ul>
@@ -175,15 +169,6 @@ export function IncomeDeductionsSection(props: IncomeDeductionsSectionProps) {
           Add deduction
         </Button>
       )}
-
-      <ConfirmDialog
-        open={!!deletingDeduction}
-        title="Remove this deduction?"
-        description="This will be permanently removed and net income will be recalculated."
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setDeletingId(null)}
-        isConfirming={isDeleting}
-      />
     </div>
   );
 }

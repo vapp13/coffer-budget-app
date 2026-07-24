@@ -2,21 +2,22 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Wallet, ArrowUpDown, LayoutGrid } from "lucide-react";
+import { ArrowLeft, Plus, Wallet, ArrowUpDown, LayoutGrid, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useIncomeSources } from "@/hooks/use-income-sources";
 import { useFormatting } from "@/hooks/use-formatting";
+import { useUndoableDelete } from "@/hooks/use-undoable-delete";
 import { IncomeSourceForm } from "@/components/forms/income-source-form";
 import { IncomeItem } from "@/components/income/income-item";
 import { IncomeDetailsModal } from "@/components/income/income-details-modal";
 import { addDeduction } from "@/lib/data/deductions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListRowSkeleton } from "@/components/ui/list-row-skeleton";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SORT_OPTIONS, sortItems, type SortOption } from "@/lib/sort";
 import { groupBy } from "@/lib/group-by";
@@ -48,14 +49,19 @@ export default function IncomePage() {
   } = useIncomeSources();
   const { formatDate, formatCurrency } = useFormatting();
 
+  const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortOption>("az");
   const [view, setView] = useState<ViewOption>("list");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingIncome, setEditingIncome] = useState<IncomeSource | null>(null);
   const [viewingIncome, setViewingIncome] = useState<IncomeSource | null>(null);
-  const [deletingIncome, setDeletingIncome] = useState<IncomeSource | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const { isPending: isPendingDelete, deleteWithUndo } = useUndoableDelete<IncomeSource>({
+    onCommit: (income) => removeIncomeSource.mutateAsync(income.id),
+    getMessage: (income) => `Removed "${income.label}"`,
+    getErrorMessage: (income) => `Couldn't remove "${income.label}" — try again.`,
+  });
 
   function openAddModal() {
     setEditingIncome(null);
@@ -105,26 +111,28 @@ export default function IncomePage() {
     }
   }
 
-  async function handleConfirmDelete() {
-    if (!deletingIncome) return;
-    setIsDeleting(true);
-    try {
-      await removeIncomeSource.mutateAsync(deletingIncome.id);
-      toast.success(`Removed "${deletingIncome.label}"`);
-      setDeletingIncome(null);
-    } catch {
-      toast.error("Couldn't remove that income source — try again.");
-    } finally {
-      setIsDeleting(false);
-    }
+  function matchesQuery(income: IncomeSource) {
+    if (!query.trim()) return true;
+    const q = query.trim().toLowerCase();
+    return (
+      income.label.toLowerCase().includes(q) ||
+      (income.sourceDetails ?? "").toLowerCase().includes(q) ||
+      INCOME_SOURCE_TYPE_LABELS[resolveIncomeSourceType(income)].toLowerCase().includes(q)
+    );
   }
 
+  const visibleIncomeSources = (incomeSources ?? []).filter(
+    (i) => !isPendingDelete(i.id) && matchesQuery(i)
+  );
+
   const sortedIncome = sortItems(
-    incomeSources ?? [],
+    visibleIncomeSources,
     sort,
     (i) => i.label,
     (i) => i.grossYearlyAmount
   );
+
+  const hasAnyIncome = (incomeSources ?? []).length > 0;
 
   const editDefaultValues = editingIncome
     ? {
@@ -148,7 +156,7 @@ export default function IncomePage() {
             variant="list"
             onViewDetails={() => setViewingIncome(income)}
             onEdit={() => openEditModal(income)}
-            onDelete={() => setDeletingIncome(income)}
+            onDelete={() => deleteWithUndo(income)}
           />
         ))}
       </ul>
@@ -176,22 +184,45 @@ export default function IncomePage() {
         </Button>
       </div>
 
-      {!isLoading && incomeSources && incomeSources.length > 0 && (
-        <div className="flex flex-wrap gap-3">
-          <DropdownMenu
-            label="Sort"
-            icon={ArrowUpDown}
-            options={SORT_OPTIONS}
-            value={sort}
-            onChange={setSort}
-          />
-          <DropdownMenu
-            label="View"
-            icon={LayoutGrid}
-            options={VIEW_OPTIONS}
-            value={view}
-            onChange={setView}
-          />
+      {!isLoading && hasAnyIncome && (
+        <div className="flex flex-col gap-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search income sources…"
+              className="pl-9 pr-9"
+              aria-label="Search income sources"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <DropdownMenu
+              label="Sort"
+              icon={ArrowUpDown}
+              options={SORT_OPTIONS}
+              value={sort}
+              onChange={setSort}
+            />
+            <DropdownMenu
+              label="View"
+              icon={LayoutGrid}
+              options={VIEW_OPTIONS}
+              value={view}
+              onChange={setView}
+            />
+          </div>
         </div>
       )}
 
@@ -205,7 +236,7 @@ export default function IncomePage() {
         </Card>
       )}
 
-      {!isLoading && incomeSources?.length === 0 && (
+      {!isLoading && !hasAnyIncome && (
         <Card className="p-0">
           <EmptyState
             icon={Wallet}
@@ -213,6 +244,12 @@ export default function IncomePage() {
             description="Add your salary or other income to see your budget come together."
             action={<Button onClick={openAddModal}>Add income source</Button>}
           />
+        </Card>
+      )}
+
+      {!isLoading && hasAnyIncome && sortedIncome.length === 0 && query && (
+        <Card className="p-0">
+          <EmptyState icon={Search} title="No matches" description={`Nothing matches "${query}".`} />
         </Card>
       )}
 
@@ -230,7 +267,7 @@ export default function IncomePage() {
               variant="card"
               onViewDetails={() => setViewingIncome(income)}
               onEdit={() => openEditModal(income)}
-              onDelete={() => setDeletingIncome(income)}
+              onDelete={() => deleteWithUndo(income)}
             />
           ))}
         </div>
@@ -277,19 +314,6 @@ export default function IncomePage() {
         formatCurrency={formatCurrency}
         formatDate={formatDate}
         onClose={() => setViewingIncome(null)}
-      />
-
-      <ConfirmDialog
-        open={!!deletingIncome}
-        title="Remove this income source?"
-        description={
-          deletingIncome
-            ? `"${deletingIncome.label}" will be permanently removed. This can't be undone.`
-            : ""
-        }
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setDeletingIncome(null)}
-        isConfirming={isDeleting}
       />
     </main>
   );

@@ -17,7 +17,7 @@ import {
   parseIncomeCsv,
   type ParsedIncomeRow,
 } from "@/lib/csv/income-csv";
-import { downloadTextFile } from "@/lib/csv/download-text-file";
+import { downloadTextFile } from "@/lib/download-text-file";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CsvFileInput } from "@/components/data/csv-file-input";

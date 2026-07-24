@@ -6,6 +6,7 @@ import { ArrowLeft, Plus, Target } from "lucide-react";
 import { toast } from "sonner";
 import { useGoals } from "@/hooks/use-goals";
 import { useFormatting } from "@/hooks/use-formatting";
+import { useUndoableDelete } from "@/hooks/use-undoable-delete";
 import { toDateInputValue } from "@/lib/date-input-value";
 import { GoalForm } from "@/components/goals/goal-form";
 import { GoalCard } from "@/components/goals/goal-card";
@@ -13,7 +14,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Goal, GoalInput } from "@/lib/validation/goal";
 
@@ -23,8 +23,12 @@ export default function GoalsPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
-  const [deletingGoal, setDeletingGoal] = useState<Goal | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const { isPending: isPendingDelete, deleteWithUndo } = useUndoableDelete<Goal>({
+    onCommit: (goal) => removeGoal.mutateAsync(goal.id),
+    getMessage: (goal) => `Removed "${goal.name}"`,
+    getErrorMessage: (goal) => `Couldn't remove "${goal.name}" — try again.`,
+  });
 
   function openAddModal() {
     setEditingGoal(null);
@@ -52,19 +56,7 @@ export default function GoalsPage() {
     }
   }
 
-  async function handleConfirmDelete() {
-    if (!deletingGoal) return;
-    setIsDeleting(true);
-    try {
-      await removeGoal.mutateAsync(deletingGoal.id);
-      toast.success(`Removed "${deletingGoal.name}"`);
-      setDeletingGoal(null);
-    } catch {
-      toast.error("Couldn't remove that goal — try again.");
-    } finally {
-      setIsDeleting(false);
-    }
-  }
+  const visibleGoals = (goals ?? []).filter((g) => !isPendingDelete(g.id));
 
   const editDefaultValues = editingGoal
     ? {
@@ -109,7 +101,7 @@ export default function GoalsPage() {
         </div>
       )}
 
-      {!isLoading && goals?.length === 0 && (
+      {!isLoading && visibleGoals.length === 0 && (
         <Card className="p-0">
           <EmptyState
             icon={Target}
@@ -120,16 +112,16 @@ export default function GoalsPage() {
         </Card>
       )}
 
-      {!isLoading && goals && goals.length > 0 && (
+      {!isLoading && visibleGoals.length > 0 && (
         <div className="flex flex-col gap-3">
-          {goals.map((goal) => (
+          {visibleGoals.map((goal) => (
             <GoalCard
               key={goal.id}
               goal={goal}
               formatCurrency={formatCurrency}
               formatDate={formatDate}
               onEdit={() => openEditModal(goal)}
-              onDelete={() => setDeletingGoal(goal)}
+              onDelete={() => deleteWithUndo(goal)}
             />
           ))}
         </div>
@@ -150,17 +142,6 @@ export default function GoalsPage() {
           submitLabel={editingGoal ? "Save changes" : "Add goal"}
         />
       </Dialog>
-
-      <ConfirmDialog
-        open={!!deletingGoal}
-        title="Remove this goal?"
-        description={
-          deletingGoal ? `"${deletingGoal.name}" will be permanently removed. This can't be undone.` : ""
-        }
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setDeletingGoal(null)}
-        isConfirming={isDeleting}
-      />
     </main>
   );
 }
