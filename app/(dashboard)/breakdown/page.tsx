@@ -8,6 +8,7 @@ import { useSelectedMonth } from "@/lib/date/month-provider";
 import { monthLabel } from "@/lib/date/month";
 import { IncomeBreakdownTable } from "@/components/breakdown/income-breakdown-table";
 import { ExpenseBreakdownTable } from "@/components/breakdown/expense-breakdown-table";
+import { SavingsBreakdownCard } from "@/components/breakdown/savings-breakdown-card";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -49,6 +50,7 @@ export default function BreakdownPage() {
       {!isLoading && summary && (
         <>
           <IncomeBreakdownTable income={summary.income} formatCurrency={formatCurrency} />
+          <SavingsBreakdownCard summary={summary} formatCurrency={formatCurrency} />
           <ExpenseBreakdownTable
             categories={summary.categories}
             totalMonthlyExpenses={summary.totalMonthlyExpenses}

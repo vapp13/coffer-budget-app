@@ -18,6 +18,7 @@ import { expenseAmountForMonth } from "@/lib/calculations/recurrence";
 import { buildMonthlySeries, monthRangeAround } from "@/lib/calculations/monthly-series";
 import { sortItems } from "@/lib/sort";
 import { deriveInsights } from "@/lib/insights";
+import { calculateSavingsBreakdown } from "@/lib/calculations/savings";
 import { MonthPicker } from "@/components/dashboard/month-picker";
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { SummaryCardSkeleton } from "@/components/dashboard/summary-card-skeleton";
@@ -64,8 +65,7 @@ export default function DashboardPage() {
     summary.income.gross.yearly === 0 &&
     summary.totalYearlyExpenses === 0;
 
-  const savingsShare =
-    summary?.categories.find((c) => c.categoryName === "Savings")?.percentageOfIncome ?? 0;
+  const savingsRate = summary ? calculateSavingsBreakdown(summary).savingsRate : 0;
 
   function categoryName(categoryId: string) {
     return categories?.find((c) => c.id === categoryId)?.name ?? "Uncategorized";
@@ -165,7 +165,7 @@ export default function DashboardPage() {
             />
             <SummaryCard
               label="Savings rate"
-              value={savingsShare * 100}
+              value={savingsRate * 100}
               formatValue={(v) => `${v.toFixed(1)}%`}
             />
           </div>

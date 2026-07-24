@@ -1,9 +1,11 @@
 "use client";
 
 import type { MouseEvent } from "react";
-import { Pencil, Trash2, Archive, ArchiveRestore, AlertTriangle, Repeat, CircleDot } from "lucide-react";
+import { Pencil, Trash2, Archive, ArchiveRestore, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ExpenseTypeBadge } from "@/components/expenses/expense-type-badge";
+import { recurringCostBreakdown } from "@/lib/calculations/expenses";
 import { resolveExpenseType, type Expense } from "@/lib/validation/expense";
 
 type ExpenseItemProps = {
@@ -38,24 +40,30 @@ export function ExpenseItem({
     };
   }
 
-  const isOneTime = resolveExpenseType(expense) === "one_time";
+  const type = resolveExpenseType(expense);
+  const costBreakdown = recurringCostBreakdown(expense);
 
   const content = (
     <div className="flex min-w-0 flex-1 items-center gap-3">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{expense.description}</p>
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-medium">{expense.description}</p>
+          <ExpenseTypeBadge type={type} />
+        </div>
         <p className="truncate text-xs text-muted-foreground">
-          {categoryName} ·{" "}
-          {isOneTime ? (
-            <span className="inline-flex items-center gap-0.5">
-              <CircleDot className="h-3 w-3" /> One-time
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-0.5 capitalize">
-              <Repeat className="h-3 w-3" /> {expense.frequency}
-            </span>
+          {categoryName}
+          {type === "recurring" && (
+            <>
+              {" · "}
+              <span className="capitalize">{expense.frequency}</span>
+            </>
           )}
         </p>
+        {costBreakdown && (
+          <p className="truncate text-xs tabular-nums text-muted-foreground">
+            Monthly: {formatCurrency(costBreakdown.monthly)} · Yearly: {formatCurrency(costBreakdown.yearly)}
+          </p>
+        )}
         {isEndingThisMonth && (
           <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-accent">
             <AlertTriangle className="h-3 w-3 shrink-0" />

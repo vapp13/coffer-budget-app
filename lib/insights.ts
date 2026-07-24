@@ -1,4 +1,5 @@
 import type { BudgetSummary } from "@/lib/calculations/budget-summary";
+import { calculateSavingsBreakdown } from "@/lib/calculations/savings";
 
 export type Insight =
   | { kind: "over-budget"; categoryNames: string[] }
@@ -7,6 +8,7 @@ export type Insight =
   | { kind: "overspend"; amount: number }
   | { kind: "buffer"; percentage: number }
   | { kind: "savings-low" }
+  | { kind: "savings-unallocated" }
   | { kind: "savings-good" };
 
 /**
@@ -52,11 +54,20 @@ export function deriveInsights(summary: BudgetSummary): Insight[] {
     insights.push({ kind: "buffer", percentage: summary.remaining.percentageOfIncome * 100 });
   }
 
-  const savingsShare =
-    summary.categories.find((c) => c.categoryName === "Savings")?.percentageOfIncome ?? 0;
-  if (savingsShare < 0.1) {
+  // Savings: exactly one of these three fires, derived from the single
+  // unified savings-rate calculation (see lib/calculations/savings.ts) so
+  // this always agrees with the Savings Rate card and the Breakdown page.
+  const savings = calculateSavingsBreakdown(summary);
+  const hasSavingsCategorySpend = savings.savingsCategoryMonthly > 0;
+  const remainingShare = summary.remaining.percentageOfIncome;
+
+  if (!hasSavingsCategorySpend && remainingShare >= 0.1) {
+    // Case 2: the numbers look fine, but only because money is going
+    // unallocated, not because it's actually been put toward savings.
+    insights.push({ kind: "savings-unallocated" });
+  } else if (savings.savingsRate < 0.1) {
     insights.push({ kind: "savings-low" });
-  } else if (savingsShare >= 0.2) {
+  } else {
     insights.push({ kind: "savings-good" });
   }
 

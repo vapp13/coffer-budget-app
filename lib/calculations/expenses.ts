@@ -21,6 +21,21 @@ export function expenseYearlyTotal(expense: Expense): number {
   return normalizeToYearly(expense.unitCost, expense.frequency);
 }
 
+/**
+ * Monthly and yearly cost for a *recurring* expense specifically — for
+ * display (the expense list/card/details views), not month-scoped
+ * calculation. Monthly is always the annualized rate ÷ 12, so a monthly
+ * expense's monthly cost is exactly its cost-per-occurrence, and a yearly
+ * expense's monthly cost is its cost-per-occurrence ÷ 12 — matching every
+ * frequency's natural conversion. Returns null for one-time expenses, which
+ * aren't a recurring monthly/yearly commitment at all.
+ */
+export function recurringCostBreakdown(expense: Expense): { monthly: number; yearly: number } | null {
+  if (resolveExpenseType(expense) === "one_time") return null;
+  const yearly = normalizeToYearly(expense.unitCost, expense.frequency);
+  return { monthly: round2(yearly / 12), yearly: round2(yearly) };
+}
+
 /** Sum of every active expense's annualized run-rate, regardless of month. */
 export function totalYearlyExpenseRate(expenses: Expense[]): number {
   return round2(

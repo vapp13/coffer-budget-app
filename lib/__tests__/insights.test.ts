@@ -106,3 +106,54 @@ describe("deriveInsights — ending-soon alerts", () => {
     expect(insights.find((i) => i.kind === "ending-soon")).toBeUndefined();
   });
 });
+
+describe("deriveInsights — savings (3-case system)", () => {
+  it("Case 1: savings rate below 10% with an actual Savings category", () => {
+    // Net monthly 3333.33, Savings category spend only 100 (~3%), low remaining.
+    const summary = fakeSummary({
+      categories: [category({ categoryName: "Savings", monthly: 100, yearly: 1200 })],
+      remainingMonthly: 50,
+      remainingPercentage: 0.015,
+    });
+    const insights = deriveInsights(summary);
+    expect(insights.find((i) => i.kind === "savings-low")).toBeTruthy();
+    expect(insights.find((i) => i.kind === "savings-good")).toBeUndefined();
+    expect(insights.find((i) => i.kind === "savings-unallocated")).toBeUndefined();
+  });
+
+  it("Case 2: no Savings category spend at all, but 10%+ remaining unallocated", () => {
+    const summary = fakeSummary({ categories: [], remainingMonthly: 500, remainingPercentage: 0.15 });
+    const insights = deriveInsights(summary);
+    expect(insights.find((i) => i.kind === "savings-unallocated")).toBeTruthy();
+    expect(insights.find((i) => i.kind === "savings-good")).toBeUndefined();
+    expect(insights.find((i) => i.kind === "savings-low")).toBeUndefined();
+  });
+
+  it("Case 3: healthy savings rate via an actual Savings category", () => {
+    const summary = fakeSummary({
+      categories: [category({ categoryName: "Savings", monthly: 500, yearly: 6000 })],
+      remainingMonthly: 0,
+      remainingPercentage: 0,
+    });
+    const insights = deriveInsights(summary);
+    expect(insights.find((i) => i.kind === "savings-good")).toBeTruthy();
+  });
+
+  it("does not fire the low-savings insight once the rate is exactly at 10%", () => {
+    // 3333.33 * 0.10 = 333.333 — round up slightly so this is unambiguously >= 10%.
+    const summary = fakeSummary({
+      categories: [category({ categoryName: "Savings", monthly: 333.34, yearly: 4000 })],
+      remainingMonthly: 0,
+      remainingPercentage: 0,
+    });
+    const insights = deriveInsights(summary);
+    expect(insights.find((i) => i.kind === "savings-low")).toBeUndefined();
+  });
+
+  it("no Savings category and low remaining → low savings, not unallocated", () => {
+    const summary = fakeSummary({ categories: [], remainingMonthly: 50, remainingPercentage: 0.015 });
+    const insights = deriveInsights(summary);
+    expect(insights.find((i) => i.kind === "savings-low")).toBeTruthy();
+    expect(insights.find((i) => i.kind === "savings-unallocated")).toBeUndefined();
+  });
+});

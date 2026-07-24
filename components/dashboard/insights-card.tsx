@@ -32,9 +32,11 @@ function renderInsight(insight: Insight, formatCurrency: (value: number) => stri
     case "buffer":
       return `You have a healthy buffer — ${insight.percentage.toFixed(0)}% of your income is unallocated this month.`;
     case "savings-low":
-      return "Your savings rate is under 10% — worth a look if you have room to increase it.";
+      return "Your savings rate is below 10%. Consider reviewing your expenses to identify opportunities to increase your savings.";
+    case "savings-unallocated":
+      return "You have available budget that is not currently allocated to savings. Consider opening a savings account or investing part of this money to help grow your financial future.";
     case "savings-good":
-      return "Nice work — you're saving over 20% of your income.";
+      return "Great job! Your savings rate is above 10%. Keep maintaining this habit and consider optimizing where your savings are allocated.";
   }
 }
 
