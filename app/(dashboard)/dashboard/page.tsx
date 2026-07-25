@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Sparkles, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { useTaxProfile } from "@/hooks/use-tax-profile";
 import { useAllDeductions } from "@/hooks/use-all-deductions";
 import { useGoals } from "@/hooks/use-goals";
 import { useDebts } from "@/hooks/use-debts";
+import { useUserProfile } from "@/hooks/use-user-profile";
 import { useFormatting } from "@/hooks/use-formatting";
 import { useSelectedMonth } from "@/lib/date/month-provider";
 import { buildMonthlySeries, monthRangeAround } from "@/lib/calculations/monthly-series";
@@ -34,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ExpenseForm } from "@/components/forms/expense-form";
+import { OnboardingFlow } from "@/components/onboarding/onboarding-flow";
 import type { ExpenseInput } from "@/lib/validation/expense";
 
 export default function DashboardPage() {
@@ -44,6 +46,7 @@ export default function DashboardPage() {
   const { data: incomeSources } = useIncomeSources();
   const { data: goals } = useGoals();
   const { data: debts } = useDebts();
+  const { data: profile, completeOnboarding } = useUserProfile();
   const { taxProfile } = useTaxProfile();
   const { deductionsBySourceId } = useAllDeductions(incomeSources);
   const { formatCurrency, locale } = useFormatting();
@@ -63,6 +66,28 @@ export default function DashboardPage() {
     summary &&
     summary.income.gross.yearly === 0 &&
     summary.totalYearlyExpenses === 0;
+
+  // Whether onboarding should ever trigger is decided ONCE, the first time
+  // we have enough data to decide, then never re-evaluated. If this stayed
+  // reactive to live data, adding the very first income source during
+  // onboarding would flip hasNoData to false mid-flow and instantly unmount
+  // the whole thing — exactly the "Add Income kicks me to the dashboard"
+  // bug. Once a session decides to show onboarding, only finishing it
+  // (which sets onboardingCompleted) should end it.
+  const [onboardingActive, setOnboardingActive] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (onboardingActive !== null) return;
+    if (isLoading || !profile) return;
+    setOnboardingActive(!profile.onboardingCompleted && !!hasNoData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, profile]);
+
+  const showOnboarding = onboardingActive === true;
+
+  function finishOnboarding() {
+    setOnboardingActive(false);
+    completeOnboarding.mutate();
+  }
 
   const savingsRate = summary ? calculateSavingsBreakdown(summary).savingsRate : 0;
   const remainingBudget = summary ? Math.max(0, summary.remaining.monthly) : 0;
@@ -85,6 +110,8 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
+      {showOnboarding && <OnboardingFlow onFinish={finishOnboarding} />}
+
       <div className="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
           Welcome back{firstName ? `, ${firstName}` : ""}.

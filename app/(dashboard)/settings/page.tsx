@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { LogOut, UploadCloud, DownloadCloud } from "lucide-react";
+import { LogOut, UploadCloud, DownloadCloud, Tag } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useTheme, resolveSystemTheme } from "@/lib/theme/theme-provider";
@@ -193,6 +193,22 @@ export default function SettingsPage() {
             {saveProfile.isPending ? "Saving…" : "Save changes"}
           </Button>
         </form>
+      )}
+
+      {!isLoading && (
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-sm font-medium">Categories</h2>
+          <Link
+            href="/settings/categories"
+            className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+          >
+            <Tag className="h-4 w-4" />
+            Manage categories
+          </Link>
+          <p className="text-xs text-muted-foreground">
+            Rename, recolor, add, or delete categories — and restore the defaults any time.
+          </p>
+        </Card>
       )}
 
       {!isLoading && (

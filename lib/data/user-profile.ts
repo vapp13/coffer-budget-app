@@ -29,6 +29,12 @@ export async function updateUserProfile(
   await setDoc(userDocRef(userId), input, { merge: true });
 }
 
+/** Marks the first-run onboarding flow as done (or explicitly skipped),
+ * so it never shows again regardless of future data state. */
+export async function markOnboardingCompleted(userId: string): Promise<void> {
+  await setDoc(userDocRef(userId), { onboardingCompleted: true }, { merge: true });
+}
+
 /**
  * Seeds the profile doc from the signed-in Google account, exactly once.
  * Same transaction-guarded pattern as `ensureDefaultCategories` — see that

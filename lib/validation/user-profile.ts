@@ -36,6 +36,11 @@ export const userProfileSchema = z.object({
   // 25th) — not yet wired into the calculation engine, but stored now so it
   // doesn't require a data migration when it is.
   budgetCycleStartDay: z.coerce.number().int().min(1).max(28).default(1),
+  /** Whether the user has finished (or explicitly skipped) the first-run
+   * onboarding flow. Combined with "has no data yet" to decide whether to
+   * show it — see useOnboardingState — so it never reappears once dismissed,
+   * even if the user later deletes everything. */
+  onboardingCompleted: z.boolean().default(false),
 });
 
 export type UserProfileInput = z.infer<typeof userProfileSchema>;

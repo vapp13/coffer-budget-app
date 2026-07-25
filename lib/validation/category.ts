@@ -23,6 +23,7 @@ export type Category = CategoryInput & {
 
 // Seeded once per new user — mirrors the categories already in the spreadsheet.
 export const DEFAULT_CATEGORIES: CategoryInput[] = [
+  { name: "Rent", group: "House", color: "#3DA5D9", isDefault: true },
   { name: "Mortgage", group: "House", color: "#2BAE85", isDefault: true },
   { name: "Maintenance", group: "House", color: "#4FA8C9", isDefault: true },
   { name: "Utilities", group: "House", color: "#5B8DEF", isDefault: true },

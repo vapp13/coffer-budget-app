@@ -2,10 +2,10 @@ import {
   collection,
   addDoc,
   updateDoc,
+  deleteDoc,
   getDocs,
   doc,
   runTransaction,
-  deleteField,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import {
@@ -14,6 +14,7 @@ import {
   type Category,
   type CategoryInput,
 } from "@/lib/validation/category";
+import { stripUndefined, toUpdatePayload } from "@/lib/data/firestore-write-helpers";
 
 export function categoriesRef(userId: string) {
   return collection(db, "users", userId, "categories");
@@ -30,7 +31,7 @@ export async function addCategory(
   input: CategoryInput
 ): Promise<string> {
   const parsed = categorySchema.parse(input);
-  const docRef = await addDoc(categoriesRef(userId), parsed);
+  const docRef = await addDoc(categoriesRef(userId), stripUndefined(parsed));
   return docRef.id;
 }
 
@@ -40,13 +41,31 @@ export async function updateCategory(
   input: CategoryInput
 ): Promise<void> {
   const parsed = categorySchema.parse(input);
-  // `undefined` fields are dropped by Firestore's update, not cleared, so a
-  // budget being removed needs an explicit delete sentinel.
-  const payload: Record<string, unknown> = { ...parsed };
-  if (parsed.monthlyBudget === undefined) {
-    payload.monthlyBudget = deleteField();
+  await updateDoc(doc(categoriesRef(userId), categoryId), toUpdatePayload(parsed));
+}
+
+export async function deleteCategory(userId: string, categoryId: string): Promise<void> {
+  await deleteDoc(doc(categoriesRef(userId), categoryId));
+}
+
+/**
+ * Adds back any of the current default categories the user doesn't already
+ * have (matched by exact name), without touching or duplicating ones that
+ * still exist. This is also how an existing account picks up a *new*
+ * default category added after their account was created (e.g. "Rent") —
+ * the one-time seeding in `ensureDefaultCategories` only ever runs once, so
+ * it can't retroactively add anything new; this can.
+ */
+export async function restoreDefaultCategories(userId: string): Promise<number> {
+  const existing = await listCategories(userId);
+  const existingNames = new Set(existing.map((c) => c.name.trim().toLowerCase()));
+  const missing = DEFAULT_CATEGORIES.filter((c) => !existingNames.has(c.name.trim().toLowerCase()));
+
+  for (const category of missing) {
+    await addDoc(categoriesRef(userId), stripUndefined(categorySchema.parse(category)));
   }
-  await updateDoc(doc(categoriesRef(userId), categoryId), payload);
+
+  return missing.length;
 }
 
 /**
@@ -70,7 +89,7 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
 
     for (const category of DEFAULT_CATEGORIES) {
       const newDocRef = doc(categoriesRef(userId));
-      transaction.set(newDocRef, categorySchema.parse(category));
+      transaction.set(newDocRef, stripUndefined(categorySchema.parse(category)));
     }
     transaction.set(userDocRef, { categoriesSeeded: true }, { merge: true });
   });

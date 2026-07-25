@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth/auth-context";
-import { getUserProfile, updateUserProfile, ensureUserProfile } from "@/lib/data/user-profile";
+import { getUserProfile, updateUserProfile, ensureUserProfile, markOnboardingCompleted } from "@/lib/data/user-profile";
 import type { UserProfileFormInput } from "@/lib/validation/user-profile";
 
 export function useUserProfile() {
@@ -34,5 +34,11 @@ export function useUserProfile() {
       queryClient.invalidateQueries({ queryKey: ["userProfile", userId] }),
   });
 
-  return { ...query, saveProfile };
+  const completeOnboarding = useMutation({
+    mutationFn: () => markOnboardingCompleted(userId as string),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["userProfile", userId] }),
+  });
+
+  return { ...query, saveProfile, completeOnboarding };
 }

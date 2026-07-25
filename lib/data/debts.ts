@@ -2,6 +2,7 @@ import { collection, addDoc, updateDoc, deleteDoc, getDocs, doc } from "firebase
 import { db } from "@/lib/firebase/client";
 import { debtSchema, type Debt, type DebtInput } from "@/lib/validation/debt";
 import { toFirestoreDate, fromFirestoreDate } from "@/lib/data/firestore-dates";
+import { stripUndefined, toUpdatePayload } from "@/lib/data/firestore-write-helpers";
 
 function debtsRef(userId: string) {
   return collection(db, "users", userId, "debts");
@@ -21,13 +22,13 @@ export async function listDebts(userId: string): Promise<Debt[]> {
 
 export async function addDebt(userId: string, input: DebtInput): Promise<string> {
   const parsed = debtSchema.parse(input);
-  const docRef = await addDoc(debtsRef(userId), toFirestoreDoc(parsed));
+  const docRef = await addDoc(debtsRef(userId), stripUndefined(toFirestoreDoc(parsed)));
   return docRef.id;
 }
 
 export async function updateDebt(userId: string, debtId: string, input: DebtInput): Promise<void> {
   const parsed = debtSchema.parse(input);
-  await updateDoc(doc(debtsRef(userId), debtId), toFirestoreDoc(parsed));
+  await updateDoc(doc(debtsRef(userId), debtId), toUpdatePayload(toFirestoreDoc(parsed)));
 }
 
 export async function deleteDebt(userId: string, debtId: string): Promise<void> {

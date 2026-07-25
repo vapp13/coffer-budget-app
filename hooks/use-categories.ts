@@ -7,6 +7,8 @@ import {
   listCategories,
   addCategory,
   updateCategory,
+  deleteCategory,
+  restoreDefaultCategories,
   ensureDefaultCategories,
 } from "@/lib/data/categories";
 import { dedupeCategories } from "@/lib/data/dedupe-categories";
@@ -56,5 +58,17 @@ export function useCategories() {
       queryClient.invalidateQueries({ queryKey: ["categories", userId] }),
   });
 
-  return { ...query, createCategory, editCategory };
+  const removeCategory = useMutation({
+    mutationFn: (id: string) => deleteCategory(userId as string, id),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["categories", userId] }),
+  });
+
+  const restoreDefaults = useMutation({
+    mutationFn: () => restoreDefaultCategories(userId as string),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["categories", userId] }),
+  });
+
+  return { ...query, createCategory, editCategory, removeCategory, restoreDefaults };
 }
