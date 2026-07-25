@@ -75,7 +75,7 @@ describe("buildMonthlySeries", () => {
     },
   ];
 
-  it("reflects real month-to-month variation, not a smoothed average", () => {
+  it("smooths a yearly expense's contribution evenly, rather than spiking in its billing month", () => {
     const months = monthRangeAround({ year: 2026, month: 2 }, 1, 1); // Feb, Mar, Apr 2026
     const series = buildMonthlySeries(incomeSources, expenses, categories, DEFAULT_TAX_PROFILE, months);
 
@@ -83,9 +83,11 @@ describe("buildMonthlySeries", () => {
     const mar = series[1]!;
     const apr = series[2]!;
 
-    expect(feb.expenses).toBeCloseTo(40, 2); // just the gym
-    expect(mar.expenses).toBeCloseTo(40 + 120, 2); // gym + annual renewal spike
-    expect(apr.expenses).toBeCloseTo(40, 2); // back down after the spike
+    // £120/year ÷ 12 = £10/month, every month — including March, its
+    // billing month, which is no longer any different from Feb or April.
+    expect(feb.expenses).toBeCloseTo(40 + 10, 2);
+    expect(mar.expenses).toBeCloseTo(40 + 10, 2);
+    expect(apr.expenses).toBeCloseTo(40 + 10, 2);
   });
 
   it("labels each point with a compact month label", () => {

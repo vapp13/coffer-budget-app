@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { expenseOccursInMonth, expenseAmountForMonth } from "@/lib/calculations/recurrence";
+import { expenseOccursInMonth, expenseAmountForMonth, expenseMonthlyEquivalent } from "@/lib/calculations/recurrence";
 import type { Expense } from "@/lib/validation/expense";
 import type { MonthKey } from "@/lib/date/month";
 
@@ -144,5 +144,84 @@ describe("daily/weekly/fortnightly frequencies", () => {
     const fortnightly = baseExpense({ frequency: "fortnightly", unitCost: 28, startDate: utc(2026, 0, 1) });
     expect(expenseAmountForMonth(weekly, JAN)).toBeCloseTo(14 * (31 / 7), 5);
     expect(expenseAmountForMonth(fortnightly, JAN)).toBeCloseTo(28 * (31 / 14), 5);
+  });
+});
+
+describe("expenseMonthlyEquivalent — smoothed monthly totals for aggregates", () => {
+  it("reproduces the reported bug exactly: Gym £42/mo + Runescape £7.99/mo + Amazon Prime £95/yr", () => {
+    const gym = baseExpense({
+      id: "gym",
+      unitCost: 42,
+      frequency: "monthly",
+      startDate: utc(2025, 0, 1),
+    });
+    const runescape = baseExpense({
+      id: "runescape",
+      unitCost: 7.99,
+      frequency: "monthly",
+      startDate: utc(2025, 0, 1),
+    });
+    const amazonPrime = baseExpense({
+      id: "amazon",
+      unitCost: 95,
+      frequency: "yearly",
+      startDate: utc(2025, 8, 15), // billing month: September — deliberately NOT the target month
+    });
+
+    const total =
+      expenseMonthlyEquivalent(gym, MAR) +
+      expenseMonthlyEquivalent(runescape, MAR) +
+      expenseMonthlyEquivalent(amazonPrime, MAR);
+
+    expect(total).toBeCloseTo(42 + 7.99 + 95 / 12, 2);
+    expect(total).toBeCloseTo(57.91, 2);
+  });
+
+  it("a yearly expense contributes the same smoothed amount every month, not just its billing month", () => {
+    const yearly = baseExpense({ unitCost: 95, frequency: "yearly", startDate: utc(2025, 8, 15) });
+    const expected = 7.92; // round2(95 / 12)
+    expect(expenseMonthlyEquivalent(yearly, JAN)).toBeCloseTo(expected, 2);
+    expect(expenseMonthlyEquivalent(yearly, MAR)).toBeCloseTo(expected, 2);
+    expect(expenseMonthlyEquivalent(yearly, SEP)).toBeCloseTo(expected, 2);
+  });
+
+  it("a monthly expense's smoothed amount equals its cost per occurrence, unchanged", () => {
+    const monthly = baseExpense({ unitCost: 42, frequency: "monthly", startDate: utc(2025, 0, 1) });
+    expect(expenseMonthlyEquivalent(monthly, MAR)).toBeCloseTo(42, 2);
+  });
+
+  it("weekly/fortnightly/quarterly all smooth to a stable monthly figure regardless of the specific month's day count", () => {
+    const weekly = baseExpense({ unitCost: 14, frequency: "weekly", startDate: utc(2025, 0, 1) });
+    const fortnightly = baseExpense({ unitCost: 28, frequency: "fortnightly", startDate: utc(2025, 0, 1) });
+    const quarterly = baseExpense({ unitCost: 300, frequency: "quarterly", startDate: utc(2025, 0, 1) });
+
+    // Same result in Feb (28 days) and Mar (31 days) — unlike the old
+    // occurrence-based calculation, this no longer varies by day count.
+    expect(expenseMonthlyEquivalent(weekly, FEB)).toBeCloseTo(expenseMonthlyEquivalent(weekly, MAR), 2);
+    expect(expenseMonthlyEquivalent(weekly, JAN)).toBeCloseTo(60.67, 2);
+    expect(expenseMonthlyEquivalent(fortnightly, JAN)).toBeCloseTo(60.67, 2);
+    expect(expenseMonthlyEquivalent(quarterly, JAN)).toBeCloseTo(100, 2);
+  });
+
+  it("one-time expenses are unaffected — still only count in their own month, in full", () => {
+    const oneTime = baseExpense({ expenseType: "one_time", unitCost: 500, startDate: utc(2026, 2, 10) });
+    expect(expenseMonthlyEquivalent(oneTime, MAR)).toBe(500);
+    expect(expenseMonthlyEquivalent(oneTime, JAN)).toBe(0);
+  });
+
+  it("respects start/end date bounds — contributes nothing outside the active range", () => {
+    const bounded = baseExpense({
+      unitCost: 95,
+      frequency: "yearly",
+      startDate: utc(2026, 5, 1),
+      endDate: utc(2026, 8, 30),
+    });
+    expect(expenseMonthlyEquivalent(bounded, JAN)).toBe(0); // before start
+    expect(expenseMonthlyEquivalent(bounded, { year: 2026, month: 6 })).toBeCloseTo(7.92, 2);
+  });
+
+  it("inactive (archived) expenses contribute nothing", () => {
+    const archived = baseExpense({ unitCost: 95, frequency: "yearly", isActive: false, startDate: utc(2025, 0, 1) });
+    expect(expenseMonthlyEquivalent(archived, MAR)).toBe(0);
   });
 });

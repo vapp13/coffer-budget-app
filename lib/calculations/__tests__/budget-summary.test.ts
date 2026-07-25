@@ -141,7 +141,13 @@ describe("remaining budget — matches Budget_2026.xlsx 'Remaining' row", () => 
   });
 });
 
-describe("multi-month recurrence — end-to-end", () => {
+describe("multi-month recurrence — end-to-end (smoothed monthly equivalents)", () => {
+  // As of the "fix recurring expense monthly calculations" change, category
+  // and summary totals use each recurring expense's smoothed monthly
+  // equivalent (annualized rate ÷ 12) for every month it's active, rather
+  // than spiking to the full amount in its billing month. A yearly £480
+  // expense now contributes a steady £40/month, not £480 once a year and
+  // £0 otherwise — see expenseMonthlyEquivalent in recurrence.ts.
   const monthlyFromMarch: Expense = {
     id: "m1",
     description: "New gym membership",
@@ -186,19 +192,22 @@ describe("multi-month recurrence — end-to-end", () => {
     ).totalMonthlyExpenses;
   }
 
-  it("a monthly expense starting in March doesn't appear in January or February", () => {
-    expect(totalForMonth(2026, 0)).toBeCloseTo(10, 2); // only the still-active "ended in June" one
-    expect(totalForMonth(2026, 1)).toBeCloseTo(10, 2);
-    expect(totalForMonth(2026, 2)).toBeCloseTo(50, 2); // +40 gym membership
+  it("a monthly expense starting in March doesn't appear before then, but the yearly expense's smoothed share does", () => {
+    // Jan/Feb: no gym yet, but car insurance already contributes its £40/mo
+    // smoothed share (active since Sept 2025) alongside the £10 streaming service.
+    expect(totalForMonth(2026, 0)).toBeCloseTo(40 + 10, 2);
+    expect(totalForMonth(2026, 1)).toBeCloseTo(40 + 10, 2);
+    expect(totalForMonth(2026, 2)).toBeCloseTo(40 + 40 + 10, 2); // +40 gym membership
   });
 
-  it("a yearly expense only spikes the total in its billing month", () => {
-    expect(totalForMonth(2026, 8)).toBeCloseTo(40 + 480, 2); // September: gym + car insurance (streaming already ended)
-    expect(totalForMonth(2026, 9)).toBeCloseTo(40, 2); // October: no car insurance either
+  it("a yearly expense contributes the same smoothed amount in its billing month as any other active month", () => {
+    // No more spike: September and October both just get car insurance's £40/mo share.
+    expect(totalForMonth(2026, 8)).toBeCloseTo(40 + 40, 2); // gym + car insurance (streaming already ended)
+    expect(totalForMonth(2026, 9)).toBeCloseTo(40 + 40, 2); // October: unchanged
   });
 
   it("an expense with an end date stops contributing after that month", () => {
-    expect(totalForMonth(2026, 5)).toBeCloseTo(40 + 10, 2); // June: still active
-    expect(totalForMonth(2026, 6)).toBeCloseTo(40, 2); // July: streaming has ended
+    expect(totalForMonth(2026, 5)).toBeCloseTo(40 + 40 + 10, 2); // June: still active
+    expect(totalForMonth(2026, 6)).toBeCloseTo(40 + 40, 2); // July: streaming has ended
   });
 });

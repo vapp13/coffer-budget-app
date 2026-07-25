@@ -2,7 +2,7 @@ import type { Expense } from "@/lib/validation/expense";
 import { resolveExpenseType } from "@/lib/validation/expense";
 import type { Category } from "@/lib/validation/category";
 import { normalizeToYearly } from "@/lib/calculations/frequency";
-import { expenseAmountForMonth } from "@/lib/calculations/recurrence";
+import { expenseMonthlyEquivalent } from "@/lib/calculations/recurrence";
 import { round2 } from "@/lib/calculations/math-helpers";
 import type { MonthKey } from "@/lib/date/month";
 
@@ -43,9 +43,15 @@ export function totalYearlyExpenseRate(expenses: Expense[]): number {
   );
 }
 
-/** What's actually incurred in the given month, across all expenses. */
+/**
+ * Total across all expenses for the given month, using each recurring
+ * expense's smoothed monthly-equivalent (annualized rate ÷ 12) rather than
+ * its real occurrence amount — so a yearly bill contributes its £X/12
+ * share every month instead of spiking in its billing month. One-time
+ * expenses are unaffected, still counting only in their own month.
+ */
 export function totalExpensesForMonth(expenses: Expense[], target: MonthKey): number {
-  return round2(expenses.reduce((sum, e) => sum + expenseAmountForMonth(e, target), 0));
+  return round2(expenses.reduce((sum, e) => sum + expenseMonthlyEquivalent(e, target), 0));
 }
 
 export type CategoryTotal = {
@@ -53,7 +59,10 @@ export type CategoryTotal = {
   categoryName: string;
   /** Annualized run-rate for this category — unaffected by the selected month. */
   yearly: number;
-  /** What this category actually costs in the selected month (0 if nothing in it occurs this month). */
+  /** This category's smoothed monthly total for the selected month — each
+   * recurring expense contributes its annualized-rate ÷ 12 share rather
+   * than spiking in its billing month; one-time expenses still only count
+   * in their own month. */
   monthly: number;
   /** This category's share of the selected month's net income (0–1). */
   percentageOfIncome: number;
@@ -62,9 +71,10 @@ export type CategoryTotal = {
 };
 
 /**
- * Per-category totals for a specific month. "monthly" reflects real
- * occurrences that month (a yearly bill shows up as a spike in its billing
- * month and £0 elsewhere), while "yearly" stays the steady annualized rate
+ * Per-category totals for a specific month. "monthly" is each expense's
+ * smoothed monthly-equivalent summed up — a yearly bill contributes its
+ * £X/12 share to every month it's active in, not a spike in its billing
+ * month and £0 elsewhere — while "yearly" stays the steady annualized rate
  * for reference.
  */
 export function categoryTotalsForMonth(
@@ -76,7 +86,7 @@ export function categoryTotalsForMonth(
   return categories.map((category) => {
     const categoryExpenses = expenses.filter((e) => e.categoryId === category.id && e.isActive);
     const monthly = round2(
-      categoryExpenses.reduce((sum, e) => sum + expenseAmountForMonth(e, target), 0)
+      categoryExpenses.reduce((sum, e) => sum + expenseMonthlyEquivalent(e, target), 0)
     );
     const yearly = round2(
       categoryExpenses.reduce((sum, e) => sum + expenseYearlyTotal(e), 0)
