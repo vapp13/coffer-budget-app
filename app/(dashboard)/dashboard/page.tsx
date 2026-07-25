@@ -12,6 +12,7 @@ import { useIncomeSources } from "@/hooks/use-income-sources";
 import { useTaxProfile } from "@/hooks/use-tax-profile";
 import { useAllDeductions } from "@/hooks/use-all-deductions";
 import { useGoals } from "@/hooks/use-goals";
+import { useDebts } from "@/hooks/use-debts";
 import { useFormatting } from "@/hooks/use-formatting";
 import { useSelectedMonth } from "@/lib/date/month-provider";
 import { buildMonthlySeries, monthRangeAround } from "@/lib/calculations/monthly-series";
@@ -22,6 +23,7 @@ import { SummaryCard } from "@/components/dashboard/summary-card";
 import { SummaryCardSkeleton } from "@/components/dashboard/summary-card-skeleton";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { GoalsSummaryCard } from "@/components/dashboard/goals-summary-card";
+import { DebtsSummaryCard } from "@/components/dashboard/debts-summary-card";
 import { InsightsCard } from "@/components/dashboard/insights-card";
 import { CategoryPieChart } from "@/components/charts/category-pie-chart";
 import { CategoryLegendCard } from "@/components/charts/category-legend-card";
@@ -41,6 +43,7 @@ export default function DashboardPage() {
   const { data: expenses, createExpense } = useExpenses();
   const { data: incomeSources } = useIncomeSources();
   const { data: goals } = useGoals();
+  const { data: debts } = useDebts();
   const { taxProfile } = useTaxProfile();
   const { deductionsBySourceId } = useAllDeductions(incomeSources);
   const { formatCurrency, locale } = useFormatting();
@@ -144,6 +147,7 @@ export default function DashboardPage() {
               value={summary.remaining.monthly}
               formatValue={formatCurrency}
               tone={summary.remaining.monthly >= 0 ? "positive" : "negative"}
+              info="Net income minus this month's expenses. Negative means you've spent more than you've brought in this month."
             />
             <SummaryCard
               label="Savings rate"
@@ -189,6 +193,8 @@ export default function DashboardPage() {
           <SpendingTrendChart data={trendSeries} formatCurrency={formatCurrency} />
 
           {goals && <GoalsSummaryCard goals={goals} formatCurrency={formatCurrency} />}
+
+          {debts && <DebtsSummaryCard debts={debts} formatCurrency={formatCurrency} />}
 
           <InsightsCard insights={deriveInsights(summary)} formatCurrency={formatCurrency} />
         </>

@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils";
 
 type BudgetProgressProps = {
@@ -19,7 +20,14 @@ export function BudgetProgress({ spent, income, formatCurrency }: BudgetProgress
 
   return (
     <Card className="flex flex-col gap-3">
-      <h2 className="text-sm font-medium">Monthly budget usage</h2>
+      <h2 className="flex items-center gap-1.5 text-sm font-medium">
+        Monthly budget usage
+        <InfoTooltip title="Monthly budget usage">
+          How much of your net income this month's expenses have used up so far, based on each
+          expense's actual recurrence (a yearly bill only counts in its billing month). Turns
+          amber near 85% used, red if you've gone over.
+        </InfoTooltip>
+      </h2>
 
       <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
         <div

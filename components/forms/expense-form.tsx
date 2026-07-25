@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label, FieldError } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 const FREQUENCY_OPTIONS: ExpenseInput["frequency"][] = [
   "daily",
@@ -97,7 +98,14 @@ export function ExpenseForm({
 
         {!isOneTime && (
           <div className="flex flex-col gap-1">
-            <Label htmlFor="frequency">Frequency</Label>
+            <Label htmlFor="frequency" className="flex items-center gap-1.5">
+              Frequency
+              <InfoTooltip title="Frequency">
+                How often this happens. It's converted to a monthly and yearly figure
+                automatically — e.g. a weekly cost is scaled up using the actual number of weeks
+                in each month, so February and a 31-day month aren't treated the same.
+              </InfoTooltip>
+            </Label>
             <Select id="frequency" {...register("frequency")}>
               {FREQUENCY_OPTIONS.map((frequency) => (
                 <option key={frequency} value={frequency}>

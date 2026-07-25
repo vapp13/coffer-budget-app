@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Target } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import type { Goal } from "@/lib/validation/goal";
 
 type GoalsSummaryCardProps = {
@@ -9,7 +10,22 @@ type GoalsSummaryCardProps = {
 };
 
 export function GoalsSummaryCard({ goals, formatCurrency }: GoalsSummaryCardProps) {
-  if (goals.length === 0) return null;
+  if (goals.length === 0) {
+    return (
+      <Card className="flex flex-col items-center gap-3 py-6 text-center">
+        <Target className="h-6 w-6 text-accent" />
+        <div>
+          <p className="text-sm font-medium">No goals added yet</p>
+          <p className="text-xs text-muted-foreground">
+            Track progress toward a savings or investment target.
+          </p>
+        </div>
+        <Link href="/goals">
+          <Button variant="outline">Add your first goal</Button>
+        </Link>
+      </Card>
+    );
+  }
 
   const activeGoals = goals.filter((g) => g.currentAmount < g.targetAmount);
   const displayGoals = (activeGoals.length > 0 ? activeGoals : goals).slice(0, 3);

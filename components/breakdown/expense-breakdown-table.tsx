@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { CategoryTotal } from "@/lib/calculations/expenses";
 
 type ExpenseBreakdownTableProps = {
@@ -32,7 +33,14 @@ export function ExpenseBreakdownTable({
 
   return (
     <Card className="flex flex-col gap-0 p-0">
-      <h2 className="px-4 pt-4 text-sm font-medium">Expense breakdown</h2>
+      <h2 className="flex items-center gap-1.5 px-4 pt-4 text-sm font-medium">
+        Expense breakdown
+        <InfoTooltip title="Yearly vs Monthly">
+          Yearly is each category's annualized rate — a £600 yearly bill shows as £600 yearly and
+          £50 monthly, spread evenly, even though it's only actually charged once a year.
+          Monthly is what's really due this specific month.
+        </InfoTooltip>
+      </h2>
 
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">

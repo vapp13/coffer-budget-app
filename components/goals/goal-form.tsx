@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label, FieldError } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 type GoalFormDefaults = Partial<Omit<GoalInput, "targetDate">> & { targetDate?: string };
 
@@ -40,7 +41,14 @@ export function GoalForm({ defaultValues, onSubmit, isSubmitting, submitLabel = 
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="type">Type</Label>
+        <Label htmlFor="type" className="flex items-center gap-1.5">
+          Type
+          <InfoTooltip title="Goal type">
+            Just for organizing your goals — a Savings goal is money you're setting aside (an
+            emergency fund, a deposit), an Investment goal is money you're growing over time.
+            Doesn't change how progress is calculated.
+          </InfoTooltip>
+        </Label>
         <Select id="type" {...register("type")}>
           {GOAL_TYPE_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>

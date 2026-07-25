@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { Goal, GoalInput } from "@/lib/validation/goal";
 
 export default function GoalsPage() {
@@ -81,7 +82,14 @@ export default function GoalsPage() {
 
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-xl font-semibold">Goals</h1>
+          <h1 className="flex items-center gap-1.5 font-display text-xl font-semibold">
+            Goals
+            <InfoTooltip title="Goals">
+              Set a target for something you're saving or investing toward — an emergency fund,
+              a deposit, a holiday. Update the current amount as you go to track progress; this
+              is tracked separately from your budget, so it's up to you to keep it current.
+            </InfoTooltip>
+          </h1>
           <p className="text-sm text-muted-foreground">Savings and investment targets.</p>
         </div>
         <Button onClick={openAddModal}>

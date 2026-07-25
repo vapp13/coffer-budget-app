@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalPositiveNumber } from "@/lib/validation/number-helpers";
 
 export const categoryGroupSchema = z.enum(["House", "Personal", "Financial"]);
 export type CategoryGroup = z.infer<typeof categoryGroupSchema>;
@@ -11,7 +12,7 @@ export const categorySchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, "Color must be a hex value like #4C6FFF"),
   isDefault: z.boolean().default(false),
   /** Optional per-category monthly spending limit, for budget tracking. No limit if unset. */
-  monthlyBudget: z.coerce.number().positive().optional(),
+  monthlyBudget: optionalPositiveNumber(),
 });
 
 export type CategoryInput = z.infer<typeof categorySchema>;
