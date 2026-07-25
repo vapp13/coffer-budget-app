@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileDown } from "lucide-react";
+import { toast } from "sonner";
 import { useBudgetSummary } from "@/hooks/use-budget-summary";
 import { useFormatting } from "@/hooks/use-formatting";
 import { useSelectedMonth } from "@/lib/date/month-provider";
@@ -10,12 +12,27 @@ import { IncomeBreakdownTable } from "@/components/breakdown/income-breakdown-ta
 import { ExpenseBreakdownTable } from "@/components/breakdown/expense-breakdown-table";
 import { SavingsBreakdownCard } from "@/components/breakdown/savings-breakdown-card";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function BreakdownPage() {
   const { summary, isLoading } = useBudgetSummary();
   const { formatCurrency, locale } = useFormatting();
   const { selectedMonth } = useSelectedMonth();
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExportPdf() {
+    if (!summary) return;
+    setIsExporting(true);
+    try {
+      const { exportBreakdownPdf } = await import("@/lib/pdf/export-breakdown-pdf");
+      exportBreakdownPdf(summary, monthLabel(selectedMonth, locale), formatCurrency);
+    } catch {
+      toast.error("Couldn't create the PDF — try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
@@ -27,11 +44,19 @@ export default function BreakdownPage() {
         Back
       </Link>
 
-      <div>
-        <h1 className="font-display text-xl font-semibold">Breakdown</h1>
-        <p className="text-sm text-muted-foreground">
-          A detailed look at income and expenses for {monthLabel(selectedMonth, locale)}.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-xl font-semibold">Breakdown</h1>
+          <p className="text-sm text-muted-foreground">
+            A detailed look at income and expenses for {monthLabel(selectedMonth, locale)}.
+          </p>
+        </div>
+        {!isLoading && summary && (
+          <Button variant="outline" onClick={handleExportPdf} disabled={isExporting} className="shrink-0">
+            <FileDown className="h-4 w-4" />
+            {isExporting ? "Preparing…" : "Export PDF"}
+          </Button>
+        )}
       </div>
 
       {isLoading && (

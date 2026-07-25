@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileDown } from "lucide-react";
+import { toast } from "sonner";
 import { useCategories } from "@/hooks/use-categories";
 import { useExpenses } from "@/hooks/use-expenses";
 import { useIncomeSources } from "@/hooks/use-income-sources";
@@ -19,6 +20,7 @@ import { SpendingTrendChart } from "@/components/reports/spending-trend-chart";
 import { ForecastCard } from "@/components/reports/forecast-card";
 import { ChartSkeleton } from "@/components/charts/chart-skeleton";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ReportsPage() {
@@ -29,6 +31,7 @@ export default function ReportsPage() {
   const { deductionsBySourceId, isLoading: deductionsLoading } = useAllDeductions(incomeSources);
   const { formatCurrency, locale } = useFormatting();
   const { selectedMonth } = useSelectedMonth();
+  const [isExporting, setIsExporting] = useState(false);
 
   const isLoading = categoriesLoading || expensesLoading || incomeLoading || taxLoading || deductionsLoading;
   const hasData = categories && expenses && incomeSources && taxProfile;
@@ -80,6 +83,26 @@ export default function ReportsPage() {
     return compareValues(current.totalMonthlyExpenses, previous.totalMonthlyExpenses);
   }, [hasData, incomeSources, expenses, categories, taxProfile, selectedMonth, deductionsBySourceId]);
 
+  async function handleExportPdf() {
+    if (!monthOverMonth || !yearOverYear) return;
+    setIsExporting(true);
+    try {
+      const { exportReportsPdf } = await import("@/lib/pdf/export-reports-pdf");
+      exportReportsPdf(
+        monthOverMonth,
+        yearOverYear,
+        trendSeries,
+        forecastSeries,
+        monthLabel(selectedMonth, locale),
+        formatCurrency
+      );
+    } catch {
+      toast.error("Couldn't create the PDF — try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
       <Link
@@ -90,14 +113,22 @@ export default function ReportsPage() {
         Back
       </Link>
 
-      <div>
-        <h1 className="font-display text-xl font-semibold">Reports</h1>
-        <p className="text-sm text-muted-foreground">
-          Trends, comparisons, and a look ahead, based on {monthLabel(selectedMonth, locale)}.
-        </p>
-        <Link href="/breakdown" className="text-sm font-medium text-primary hover:underline">
-          View detailed breakdown →
-        </Link>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-xl font-semibold">Reports</h1>
+          <p className="text-sm text-muted-foreground">
+            Trends, comparisons, and a look ahead, based on {monthLabel(selectedMonth, locale)}.
+          </p>
+          <Link href="/breakdown" className="text-sm font-medium text-primary hover:underline">
+            View detailed breakdown →
+          </Link>
+        </div>
+        {!isLoading && monthOverMonth && yearOverYear && (
+          <Button variant="outline" onClick={handleExportPdf} disabled={isExporting} className="shrink-0">
+            <FileDown className="h-4 w-4" />
+            {isExporting ? "Preparing…" : "Export PDF"}
+          </Button>
+        )}
       </div>
 
       {isLoading && (
