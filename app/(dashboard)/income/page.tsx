@@ -2,24 +2,26 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Wallet, ArrowUpDown, LayoutGrid, Search, X } from "lucide-react";
+import { ArrowLeft, Plus, Wallet, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useIncomeSources } from "@/hooks/use-income-sources";
 import { useFormatting } from "@/hooks/use-formatting";
 import { useUndoableDelete } from "@/hooks/use-undoable-delete";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { IncomeSourceForm } from "@/components/forms/income-source-form";
 import { IncomeItem } from "@/components/income/income-item";
 import { IncomeDetailsModal } from "@/components/income/income-details-modal";
+import { IncomeStatusTabs, type IncomeStatusFilter } from "@/components/income/income-status-tabs";
+import { IncomeSummaryCard } from "@/components/income/income-summary-card";
+import { IncomeFilterSheet, type IncomeGroupOption } from "@/components/income/income-filter-sheet";
 import { addDeduction } from "@/lib/data/deductions";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListRowSkeleton } from "@/components/ui/list-row-skeleton";
-import { DropdownMenu } from "@/components/ui/dropdown-menu";
-import { SORT_OPTIONS, sortItems, type SortOption } from "@/lib/sort";
+import { sortItems, type SortOption } from "@/lib/sort";
 import { groupBy } from "@/lib/group-by";
 import { toDateInputValue } from "@/lib/date-input-value";
 import type { DeductionInput } from "@/lib/validation/deduction";
@@ -30,13 +32,6 @@ import {
   type IncomeSourceInput,
   type IncomeSourceType,
 } from "@/lib/validation/income-source";
-
-type ViewOption = "list" | "card" | "group";
-const VIEW_OPTIONS: { value: ViewOption; label: string }[] = [
-  { value: "list", label: "List view" },
-  { value: "card", label: "Card view" },
-  { value: "group", label: "Group by source" },
-];
 
 export default function IncomePage() {
   const { user } = useAuth();
@@ -50,8 +45,12 @@ export default function IncomePage() {
   const { formatDate, formatCurrency } = useFormatting();
 
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortOption>("az");
-  const [view, setView] = useState<ViewOption>("list");
+  const [statusFilter, setStatusFilter] = usePersistentState<IncomeStatusFilter>(
+    "coffer-income-status-filter",
+    "all"
+  );
+  const [sort, setSort] = usePersistentState<SortOption>("coffer-income-sort", "az");
+  const [group, setGroup] = usePersistentState<IncomeGroupOption>("coffer-income-group", "none");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingIncome, setEditingIncome] = useState<IncomeSource | null>(null);
@@ -88,9 +87,6 @@ export default function IncomePage() {
               await addDeduction(user.uid, newId, draft);
             }
           } catch (error) {
-            // The income source itself was created successfully — only the
-            // deductions failed, so this needs its own message rather than
-            // being reported (misleadingly) as the income source failing.
             console.error("Failed to save deductions for new income source:", error);
             const code = (error as { code?: string })?.code;
             toast.error(
@@ -111,6 +107,22 @@ export default function IncomePage() {
     }
   }
 
+  async function handleDuplicate(income: IncomeSource) {
+    try {
+      await createIncomeSource.mutateAsync({
+        label: `${income.label} (copy)`,
+        source: income.source,
+        sourceDetails: income.sourceDetails,
+        grossYearlyAmount: income.grossYearlyAmount,
+        effectiveFrom: income.effectiveFrom,
+        effectiveTo: income.effectiveTo,
+      });
+      toast.success("Income source duplicated");
+    } catch {
+      toast.error("Couldn't duplicate that income source — try again.");
+    }
+  }
+
   function matchesQuery(income: IncomeSource) {
     if (!query.trim()) return true;
     const q = query.trim().toLowerCase();
@@ -121,17 +133,20 @@ export default function IncomePage() {
     );
   }
 
+  function isActiveIncome(income: IncomeSource) {
+    return !income.effectiveTo || income.effectiveTo >= new Date();
+  }
+
+  function matchesStatusFilter(income: IncomeSource) {
+    if (statusFilter === "all") return true;
+    return statusFilter === "active" ? isActiveIncome(income) : !isActiveIncome(income);
+  }
+
   const visibleIncomeSources = (incomeSources ?? []).filter(
-    (i) => !isPendingDelete(i.id) && matchesQuery(i)
+    (i) => !isPendingDelete(i.id) && matchesQuery(i) && matchesStatusFilter(i)
   );
 
-  const sortedIncome = sortItems(
-    visibleIncomeSources,
-    sort,
-    (i) => i.label,
-    (i) => i.grossYearlyAmount
-  );
-
+  const sortedIncome = sortItems(visibleIncomeSources, sort, (i) => i.label, (i) => i.grossYearlyAmount);
   const hasAnyIncome = (incomeSources ?? []).length > 0;
 
   const editDefaultValues = editingIncome
@@ -145,26 +160,23 @@ export default function IncomePage() {
       }
     : undefined;
 
-  function renderList(items: IncomeSource[]) {
+  function renderCard(income: IncomeSource) {
     return (
-      <ul className="divide-y divide-border">
-        {items.map((income) => (
-          <IncomeItem
-            key={income.id}
-            income={income}
-            formatCurrency={formatCurrency}
-            variant="list"
-            onViewDetails={() => setViewingIncome(income)}
-            onEdit={() => openEditModal(income)}
-            onDelete={() => deleteWithUndo(income)}
-          />
-        ))}
-      </ul>
+      <IncomeItem
+        key={income.id}
+        income={income}
+        formatCurrency={formatCurrency}
+        formatDate={formatDate}
+        onViewDetails={() => setViewingIncome(income)}
+        onEdit={() => openEditModal(income)}
+        onDuplicate={() => handleDuplicate(income)}
+        onDelete={() => deleteWithUndo(income)}
+      />
     );
   }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
+    <main className="mx-auto flex max-w-2xl flex-col gap-4 px-4 pb-8 pt-6 sm:px-6">
       <Link
         href="/dashboard"
         className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -173,26 +185,33 @@ export default function IncomePage() {
         Back
       </Link>
 
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-xl font-semibold">Income</h1>
-          <p className="text-sm text-muted-foreground">Gross yearly income sources.</p>
-        </div>
-        <Button onClick={openAddModal}>
-          <Plus className="h-4 w-4" />
-          Add Income
-        </Button>
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-2xl font-bold">Income</h1>
+        <button
+          type="button"
+          onClick={openAddModal}
+          aria-label="Add income source"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition active:scale-90"
+        >
+          <Plus className="h-5 w-5" />
+        </button>
       </div>
 
+      <IncomeStatusTabs value={statusFilter} onChange={setStatusFilter} />
+
       {!isLoading && hasAnyIncome && (
-        <div className="flex flex-col gap-3">
-          <div className="relative">
+        <IncomeSummaryCard incomeSources={visibleIncomeSources} formatCurrency={formatCurrency} />
+      )}
+
+      {!isLoading && hasAnyIncome && (
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search income sources…"
-              className="pl-9 pr-9"
+              className="pl-9 pr-11"
               aria-label="Search income sources"
             />
             {query && (
@@ -200,80 +219,51 @@ export default function IncomePage() {
                 type="button"
                 onClick={() => setQuery("")}
                 aria-label="Clear search"
-                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
-
-          <div className="flex flex-wrap gap-3">
-            <DropdownMenu
-              label="Sort"
-              icon={ArrowUpDown}
-              options={SORT_OPTIONS}
-              value={sort}
-              onChange={setSort}
-            />
-            <DropdownMenu
-              label="View"
-              icon={LayoutGrid}
-              options={VIEW_OPTIONS}
-              value={view}
-              onChange={setView}
-            />
-          </div>
+          <IncomeFilterSheet sort={sort} onSortChange={setSort} group={group} onGroupChange={setGroup} />
         </div>
       )}
 
       {isLoading && (
-        <Card className="p-0">
-          <div className="divide-y divide-border">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <ListRowSkeleton key={i} />
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {!isLoading && !hasAnyIncome && (
-        <Card className="p-0">
-          <EmptyState
-            icon={Wallet}
-            title="No income sources yet"
-            description="Add your salary or other income to see your budget come together."
-            action={<Button onClick={openAddModal}>Add income source</Button>}
-          />
-        </Card>
-      )}
-
-      {!isLoading && hasAnyIncome && sortedIncome.length === 0 && query && (
-        <Card className="p-0">
-          <EmptyState icon={Search} title="No matches" description={`Nothing matches "${query}".`} />
-        </Card>
-      )}
-
-      {!isLoading && sortedIncome.length > 0 && view === "list" && (
-        <Card className="p-0">{renderList(sortedIncome)}</Card>
-      )}
-
-      {!isLoading && sortedIncome.length > 0 && view === "card" && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {sortedIncome.map((income) => (
-            <IncomeItem
-              key={income.id}
-              income={income}
-              formatCurrency={formatCurrency}
-              variant="card"
-              onViewDetails={() => setViewingIncome(income)}
-              onEdit={() => openEditModal(income)}
-              onDelete={() => deleteWithUndo(income)}
-            />
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Card key={i} className="rounded-2xl p-0">
+              <ListRowSkeleton />
+            </Card>
           ))}
         </div>
       )}
 
-      {!isLoading && sortedIncome.length > 0 && view === "group" && (
+      {!isLoading && !hasAnyIncome && (
+        <Card className="rounded-2xl p-0">
+          <EmptyState
+            icon={Wallet}
+            title="No income sources yet"
+            description="Add your salary or other income to see your budget come together."
+          />
+        </Card>
+      )}
+
+      {!isLoading && hasAnyIncome && sortedIncome.length === 0 && (
+        <Card className="rounded-2xl p-0">
+          <EmptyState
+            icon={Search}
+            title="No matches"
+            description={query ? `Nothing matches "${query}".` : "Nothing in this filter yet."}
+          />
+        </Card>
+      )}
+
+      {!isLoading && sortedIncome.length > 0 && group === "none" && (
+        <div className="flex flex-col gap-3">{sortedIncome.map((income) => renderCard(income))}</div>
+      )}
+
+      {!isLoading && sortedIncome.length > 0 && group === "source" && (
         <div className="flex flex-col gap-5">
           {[...groupBy(sortedIncome, (i) => resolveIncomeSourceType(i)).entries()]
             .sort(([a], [b]) =>
@@ -282,11 +272,11 @@ export default function IncomePage() {
               )
             )
             .map(([source, items]) => (
-              <div key={source} className="flex flex-col gap-2">
+              <div key={source} className="flex flex-col gap-3">
                 <h2 className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {INCOME_SOURCE_TYPE_LABELS[source as IncomeSourceType]} · {items.length}
                 </h2>
-                <Card className="p-0">{renderList(items)}</Card>
+                <div className="flex flex-col gap-3">{items.map((income) => renderCard(income))}</div>
               </div>
             ))}
         </div>
