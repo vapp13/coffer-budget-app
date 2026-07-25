@@ -41,6 +41,11 @@ export const userProfileSchema = z.object({
    * show it — see useOnboardingState — so it never reappears once dismissed,
    * even if the user later deletes everything. */
   onboardingCompleted: z.boolean().default(false),
+  /** Whether the user has opted in to browser notifications (bills ending
+   * soon, over-budget categories, goal milestones). Independent of the
+   * browser's own Notification permission — both need to be true for a
+   * notification to actually show; see hooks/use-notification-checks.ts. */
+  notificationsEnabled: z.boolean().default(false),
 });
 
 export type UserProfileInput = z.infer<typeof userProfileSchema>;

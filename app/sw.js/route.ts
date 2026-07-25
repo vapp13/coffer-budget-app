@@ -88,6 +88,23 @@ async function cacheFirstForStaticAssets(request) {
     return new Response("", { status: 504 });
   }
 }
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const dashboardUrl = BASE_PATH + "/dashboard/";
+
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = allClients.find((client) => client.url.includes(dashboardUrl));
+      if (existing) {
+        await existing.focus();
+        return;
+      }
+      await self.clients.openWindow(dashboardUrl);
+    })()
+  );
+});
 `;
 
 export async function GET() {

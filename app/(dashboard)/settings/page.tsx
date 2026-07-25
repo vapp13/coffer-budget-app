@@ -11,6 +11,7 @@ import { useUserProfile } from "@/hooks/use-user-profile";
 import { useTheme, resolveSystemTheme } from "@/lib/theme/theme-provider";
 import { exportAllUserData } from "@/lib/data/export-all-data";
 import { downloadTextFile } from "@/lib/download-text-file";
+import { NotificationsCard } from "@/components/settings/notifications-card";
 import {
   userProfileFormSchema,
   CURRENCY_OPTIONS,
@@ -194,6 +195,8 @@ export default function SettingsPage() {
           </Button>
         </form>
       )}
+
+      {!isLoading && <NotificationsCard />}
 
       {!isLoading && (
         <Card className="flex flex-col gap-3">

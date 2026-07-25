@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth/auth-context";
-import { getUserProfile, updateUserProfile, ensureUserProfile, markOnboardingCompleted } from "@/lib/data/user-profile";
+import { getUserProfile, updateUserProfile, ensureUserProfile, markOnboardingCompleted, setNotificationsEnabled } from "@/lib/data/user-profile";
 import type { UserProfileFormInput } from "@/lib/validation/user-profile";
 
 export function useUserProfile() {
@@ -40,5 +40,11 @@ export function useUserProfile() {
       queryClient.invalidateQueries({ queryKey: ["userProfile", userId] }),
   });
 
-  return { ...query, saveProfile, completeOnboarding };
+  const toggleNotifications = useMutation({
+    mutationFn: (enabled: boolean) => setNotificationsEnabled(userId as string, enabled),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["userProfile", userId] }),
+  });
+
+  return { ...query, saveProfile, completeOnboarding, toggleNotifications };
 }

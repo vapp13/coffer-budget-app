@@ -35,6 +35,10 @@ export async function markOnboardingCompleted(userId: string): Promise<void> {
   await setDoc(userDocRef(userId), { onboardingCompleted: true }, { merge: true });
 }
 
+export async function setNotificationsEnabled(userId: string, enabled: boolean): Promise<void> {
+  await setDoc(userDocRef(userId), { notificationsEnabled: enabled }, { merge: true });
+}
+
 /**
  * Seeds the profile doc from the signed-in Google account, exactly once.
  * Same transaction-guarded pattern as `ensureDefaultCategories` — see that

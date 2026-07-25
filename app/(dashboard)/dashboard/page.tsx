@@ -14,6 +14,7 @@ import { useAllDeductions } from "@/hooks/use-all-deductions";
 import { useGoals } from "@/hooks/use-goals";
 import { useDebts } from "@/hooks/use-debts";
 import { useUserProfile } from "@/hooks/use-user-profile";
+import { useNotificationChecks } from "@/hooks/use-notification-checks";
 import { useFormatting } from "@/hooks/use-formatting";
 import { useSelectedMonth } from "@/lib/date/month-provider";
 import { buildMonthlySeries, monthRangeAround } from "@/lib/calculations/monthly-series";
@@ -52,6 +53,8 @@ export default function DashboardPage() {
   const { formatCurrency, locale } = useFormatting();
   const { selectedMonth } = useSelectedMonth();
   const [isAddOpen, setIsAddOpen] = useState(false);
+
+  useNotificationChecks({ enabled: !!profile?.notificationsEnabled, summary, goals });
 
   const firstName = user?.displayName?.split(" ")[0];
   const colorByCategoryId = Object.fromEntries(
