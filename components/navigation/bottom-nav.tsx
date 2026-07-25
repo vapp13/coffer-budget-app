@@ -37,6 +37,7 @@ function NavLink({ tab, active }: { tab: Tab; active: boolean }) {
   return (
     <Link
       href={tab.href}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "flex min-h-[44px] flex-1 flex-col items-center justify-center gap-1 px-1 py-1 text-[11px] font-medium transition-colors",
         active ? "text-primary" : "text-muted-foreground"

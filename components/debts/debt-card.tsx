@@ -95,10 +95,11 @@ export function DebtCard({ debt, formatCurrency, onEdit, onDelete }: DebtCardPro
           </InfoTooltip>
         </div>
 
-        <div className="flex rounded-md border border-border p-0.5">
+        <div className="flex rounded-md border border-border p-0.5" role="group" aria-label="Calculator mode">
           <button
             type="button"
             onClick={() => setMode("byPayment")}
+            aria-pressed={mode === "byPayment"}
             className={cn(
               "flex-1 rounded px-2 py-1.5 text-xs font-medium transition",
               mode === "byPayment" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
@@ -109,6 +110,7 @@ export function DebtCard({ debt, formatCurrency, onEdit, onDelete }: DebtCardPro
           <button
             type="button"
             onClick={() => setMode("byMonths")}
+            aria-pressed={mode === "byMonths"}
             className={cn(
               "flex-1 rounded px-2 py-1.5 text-xs font-medium transition",
               mode === "byMonths" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
