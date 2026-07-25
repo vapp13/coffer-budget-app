@@ -1,22 +1,32 @@
 "use client";
 
-import type { MouseEvent } from "react";
-import { Pencil, Trash2, Archive, ArchiveRestore, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { CategoryIconBadge } from "@/components/expenses/category-icon-badge";
 import { ExpenseTypeBadge } from "@/components/expenses/expense-type-badge";
-import { recurringCostBreakdown } from "@/lib/calculations/expenses";
+import { ExpenseOverflowMenu } from "@/components/expenses/expense-overflow-menu";
 import { resolveExpenseType, type Expense } from "@/lib/validation/expense";
+
+const FREQUENCY_SUFFIX: Record<Expense["frequency"], string> = {
+  daily: "/ day",
+  weekly: "/ wk",
+  fortnightly: "/ 2wk",
+  monthly: "/ month",
+  quarterly: "/ qtr",
+  yearly: "/ year",
+};
 
 type ExpenseItemProps = {
   expense: Expense;
   categoryName: string;
+  categoryColor: string;
   formatCurrency: (value: number) => string;
-  variant?: "list" | "card";
+  formatDate: (date: Date | undefined | null) => string;
   isEndingThisMonth?: boolean;
   isArchived?: boolean;
   onViewDetails: () => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onArchive: () => void;
   onDelete: () => void;
 };
@@ -24,109 +34,66 @@ type ExpenseItemProps = {
 export function ExpenseItem({
   expense,
   categoryName,
+  categoryColor,
   formatCurrency,
-  variant = "list",
+  formatDate,
   isEndingThisMonth = false,
   isArchived = false,
   onViewDetails,
   onEdit,
+  onDuplicate,
   onArchive,
   onDelete,
 }: ExpenseItemProps) {
-  function stopAnd(handler: () => void) {
-    return (event: MouseEvent) => {
-      event.stopPropagation();
-      handler();
-    };
-  }
-
   const type = resolveExpenseType(expense);
-  const costBreakdown = recurringCostBreakdown(expense);
-
-  const content = (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-medium">{expense.description}</p>
-          <ExpenseTypeBadge type={type} />
-        </div>
-        <p className="truncate text-xs text-muted-foreground">
-          {categoryName}
-          {type === "recurring" && (
-            <>
-              {" · "}
-              <span className="capitalize">{expense.frequency}</span>
-            </>
-          )}
-        </p>
-        {costBreakdown && (
-          <p className="truncate text-xs tabular-nums text-muted-foreground">
-            Monthly: {formatCurrency(costBreakdown.monthly)} · Yearly: {formatCurrency(costBreakdown.yearly)}
-          </p>
-        )}
-        {isEndingThisMonth && (
-          <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-accent">
-            <AlertTriangle className="h-3 w-3 shrink-0" />
-            Ends this month
-          </p>
-        )}
-      </div>
-      <span className="shrink-0 text-sm font-medium tabular-nums">
-        {formatCurrency(expense.unitCost)}
-      </span>
-    </div>
-  );
-
-  const actions = (
-    <div className="flex shrink-0 items-center gap-1">
-      {!isArchived && (
-        <Button
-          variant="ghost"
-          onClick={stopAnd(onEdit)}
-          aria-label={`Edit ${expense.description}`}
-          className="px-2"
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-      )}
-      <Button
-        variant="ghost"
-        onClick={stopAnd(onArchive)}
-        aria-label={isArchived ? `Restore ${expense.description}` : `Archive ${expense.description}`}
-        className="px-2"
-      >
-        {isArchived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-      </Button>
-      <Button
-        variant="ghost"
-        onClick={stopAnd(onDelete)}
-        aria-label={`Remove ${expense.description}`}
-        className="px-2"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-
-  if (variant === "card") {
-    return (
-      <Card
-        onClick={onViewDetails}
-        className="flex cursor-pointer flex-col gap-3 transition hover:shadow-md"
-      >
-        {content}
-        <div className="flex justify-end border-t border-border pt-2">{actions}</div>
-      </Card>
-    );
-  }
+  const isOneTime = type === "one_time";
+  const frequencySuffix = isOneTime ? "" : FREQUENCY_SUFFIX[expense.frequency];
+  const dateLabel = expense.startDate ? formatDate(expense.startDate) : null;
+  // The type badge already says "Recurring"/"One-time" — for one-time
+  // expenses, repeating that in the category line too would be redundant,
+  // so it just shows the category name; recurring expenses show the
+  // specific frequency here instead, which is genuinely new information.
+  const secondLine = isOneTime
+    ? categoryName
+    : `${categoryName} · ${expense.frequency.charAt(0).toUpperCase() + expense.frequency.slice(1)}`;
 
   return (
-    <li
+    <Card
       onClick={onViewDetails}
-      className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+      className="flex cursor-pointer items-center gap-3 rounded-2xl p-3 transition active:scale-[0.98]"
     >
-      {content}
-      {actions}
-    </li>
+      <CategoryIconBadge categoryName={categoryName} color={categoryColor} />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="truncate text-sm font-semibold">{expense.description}</p>
+          <ExpenseTypeBadge type={type} />
+        </div>
+        <p className="truncate text-xs text-muted-foreground">{secondLine}</p>
+        <div className="flex items-center gap-1.5">
+          {dateLabel && <p className="text-xs text-muted-foreground">{dateLabel}</p>}
+          {isEndingThisMonth && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-accent">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              Ends this month
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        <div className="text-right">
+          <p className="text-sm font-semibold tabular-nums">{formatCurrency(expense.unitCost)}</p>
+          {frequencySuffix && <p className="text-xs text-muted-foreground">{frequencySuffix}</p>}
+        </div>
+        <ExpenseOverflowMenu
+          isArchived={isArchived}
+          onEdit={onEdit}
+          onDuplicate={onDuplicate}
+          onArchiveToggle={onArchive}
+          onDelete={onDelete}
+        />
+      </div>
+    </Card>
   );
 }

@@ -1,45 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Receipt, ArrowUpDown, LayoutGrid, Archive, Search, X } from "lucide-react";
+import { ArrowLeft, Plus, Receipt, Archive, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useExpenses } from "@/hooks/use-expenses";
 import { useCategories } from "@/hooks/use-categories";
 import { useFormatting } from "@/hooks/use-formatting";
 import { useUndoableDelete } from "@/hooks/use-undoable-delete";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { ExpenseForm } from "@/components/forms/expense-form";
 import { ExpenseItem } from "@/components/expenses/expense-item";
 import { ExpenseDetailsModal } from "@/components/expenses/expense-details-modal";
+import { ExpenseTypeTabs, type ExpenseTypeFilter } from "@/components/expenses/expense-type-tabs";
+import { ExpenseSummaryCard } from "@/components/expenses/expense-summary-card";
+import { ExpenseFilterSheet, type GroupOption } from "@/components/expenses/expense-filter-sheet";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListRowSkeleton } from "@/components/ui/list-row-skeleton";
-import { DropdownMenu } from "@/components/ui/dropdown-menu";
-import { SORT_OPTIONS, sortItems, type SortOption } from "@/lib/sort";
+import { sortItems, type SortOption } from "@/lib/sort";
 import { groupBy } from "@/lib/group-by";
 import { toDateInputValue } from "@/lib/date-input-value";
 import { isEndingThisMonth } from "@/lib/calculations/archive-logic";
 import { monthKeyFromDate } from "@/lib/date/month";
-import {
-  resolveExpenseType,
-  EXPENSE_TYPE_LABELS,
-  type Expense,
-  type ExpenseInput,
-  type ExpenseType,
-} from "@/lib/validation/expense";
-
-type ViewOption = "list" | "card" | "group-category" | "group-type";
-const VIEW_OPTIONS: { value: ViewOption; label: string }[] = [
-  { value: "list", label: "List view" },
-  { value: "card", label: "Card view" },
-  { value: "group-category", label: "Group by category" },
-  { value: "group-type", label: "Group by type" },
-];
+import { resolveExpenseType, type Expense, type ExpenseInput } from "@/lib/validation/expense";
 
 const CURRENT_MONTH = monthKeyFromDate(new Date());
+const SWIPE_THRESHOLD_PX = 60;
+const TAB_ORDER: ExpenseTypeFilter[] = ["all", "recurring", "one_time"];
 
 export default function ExpensesPage() {
   const {
@@ -55,15 +45,25 @@ export default function ExpensesPage() {
   const { formatCurrency, formatDate } = useFormatting();
 
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortOption>("az");
-  const [view, setView] = useState<ViewOption>("list");
+  const [typeFilter, setTypeFilter] = usePersistentState<ExpenseTypeFilter>(
+    "coffer-expenses-type-filter",
+    "all"
+  );
+  const [sort, setSort] = usePersistentState<SortOption>("coffer-expenses-sort", "az");
+  const [group, setGroup] = usePersistentState<GroupOption>("coffer-expenses-group", "none");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
 
+  const touchStartX = useRef<number | null>(null);
+
   function categoryName(categoryId: string) {
     return categories?.find((c) => c.id === categoryId)?.name ?? "Uncategorized";
+  }
+
+  function categoryColor(categoryId: string) {
+    return categories?.find((c) => c.id === categoryId)?.color ?? "#8A9199";
   }
 
   const { isPending: isPendingDelete, deleteWithUndo } = useUndoableDelete<Expense>({
@@ -98,14 +98,30 @@ export default function ExpensesPage() {
     }
   }
 
+  async function handleDuplicate(expense: Expense) {
+    try {
+      await createExpense.mutateAsync({
+        description: `${expense.description} (copy)`,
+        categoryId: expense.categoryId,
+        unitCost: expense.unitCost,
+        frequency: expense.frequency,
+        expenseType: expense.expenseType,
+        startDate: expense.startDate,
+        endDate: expense.endDate,
+        notes: expense.notes,
+        isActive: true,
+      });
+      toast.success("Expense duplicated");
+    } catch {
+      toast.error("Couldn't duplicate that expense — try again.");
+    }
+  }
+
   async function handleArchive(expense: Expense) {
     try {
       await archiveExpense.mutateAsync(expense.id);
       toast(`Archived "${expense.description}"`, {
-        action: {
-          label: "Undo",
-          onClick: () => restoreExpense.mutate(expense.id),
-        },
+        action: { label: "Undo", onClick: () => restoreExpense.mutate(expense.id) },
       });
     } catch {
       toast.error("Couldn't archive that expense — try again.");
@@ -131,18 +147,40 @@ export default function ExpensesPage() {
     );
   }
 
-  const notDeleting = (e: Expense) => !isPendingDelete(e.id);
-  const activeExpenses = (expenses ?? []).filter((e) => e.isActive && notDeleting(e) && matchesQuery(e));
-  const archivedExpenses = (expenses ?? []).filter((e) => !e.isActive && notDeleting(e) && matchesQuery(e));
+  function matchesTypeFilter(expense: Expense) {
+    if (typeFilter === "all") return true;
+    return resolveExpenseType(expense) === typeFilter;
+  }
 
-  const sortedExpenses = sortItems(
-    activeExpenses,
-    sort,
-    (e) => e.description,
-    (e) => e.unitCost
+  const notDeleting = (e: Expense) => !isPendingDelete(e.id);
+  const activeExpenses = (expenses ?? []).filter(
+    (e) => e.isActive && notDeleting(e) && matchesQuery(e) && matchesTypeFilter(e)
+  );
+  const archivedExpenses = (expenses ?? []).filter(
+    (e) => !e.isActive && notDeleting(e) && matchesQuery(e) && matchesTypeFilter(e)
   );
 
+  const sortedExpenses = sortItems(activeExpenses, sort, (e) => e.description, (e) => e.unitCost);
   const hasAnyExpenses = (expenses ?? []).length > 0;
+
+  function handleTouchStart(event: React.TouchEvent) {
+    touchStartX.current = event.touches[0]?.clientX ?? null;
+  }
+
+  function handleTouchEnd(event: React.TouchEvent) {
+    if (touchStartX.current === null) return;
+    const endX = event.changedTouches[0]?.clientX ?? touchStartX.current;
+    const deltaX = endX - touchStartX.current;
+    touchStartX.current = null;
+
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX) return;
+    const currentIndex = TAB_ORDER.indexOf(typeFilter);
+    if (deltaX < 0 && currentIndex < TAB_ORDER.length - 1) {
+      setTypeFilter(TAB_ORDER[currentIndex + 1]!);
+    } else if (deltaX > 0 && currentIndex > 0) {
+      setTypeFilter(TAB_ORDER[currentIndex - 1]!);
+    }
+  }
 
   const editDefaultValues = editingExpense
     ? {
@@ -158,30 +196,28 @@ export default function ExpensesPage() {
       }
     : undefined;
 
-  function renderList(items: Expense[], options: { archived?: boolean } = {}) {
+  function renderCard(expense: Expense, options: { archived?: boolean } = {}) {
     return (
-      <ul className="divide-y divide-border">
-        {items.map((expense) => (
-          <ExpenseItem
-            key={expense.id}
-            expense={expense}
-            categoryName={categoryName(expense.categoryId)}
-            formatCurrency={formatCurrency}
-            variant="list"
-            isEndingThisMonth={isEndingThisMonth(expense, CURRENT_MONTH)}
-            isArchived={options.archived}
-            onViewDetails={() => setViewingExpense(expense)}
-            onEdit={() => openEditModal(expense)}
-            onArchive={() => (options.archived ? handleRestore(expense) : handleArchive(expense))}
-            onDelete={() => deleteWithUndo(expense)}
-          />
-        ))}
-      </ul>
+      <ExpenseItem
+        key={expense.id}
+        expense={expense}
+        categoryName={categoryName(expense.categoryId)}
+        categoryColor={categoryColor(expense.categoryId)}
+        formatCurrency={formatCurrency}
+        formatDate={formatDate}
+        isEndingThisMonth={isEndingThisMonth(expense, CURRENT_MONTH)}
+        isArchived={options.archived}
+        onViewDetails={() => setViewingExpense(expense)}
+        onEdit={() => openEditModal(expense)}
+        onDuplicate={() => handleDuplicate(expense)}
+        onArchive={() => (options.archived ? handleRestore(expense) : handleArchive(expense))}
+        onDelete={() => deleteWithUndo(expense)}
+      />
     );
   }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
+    <main className="mx-auto flex max-w-2xl flex-col gap-4 px-4 pb-8 pt-6 sm:px-6">
       <Link
         href="/dashboard"
         className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -190,22 +226,27 @@ export default function ExpensesPage() {
         Back
       </Link>
 
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-xl font-semibold">Expenses</h1>
-          <p className="text-sm text-muted-foreground">
-            Raw expense entries — the only source of truth.
-          </p>
-        </div>
-        <Button onClick={openAddModal}>
-          <Plus className="h-4 w-4" />
-          Add Expenses
-        </Button>
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-2xl font-bold">Expenses</h1>
+        <button
+          type="button"
+          onClick={openAddModal}
+          aria-label="Add expense"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition active:scale-90"
+        >
+          <Plus className="h-5 w-5" />
+        </button>
       </div>
 
+      <ExpenseTypeTabs value={typeFilter} onChange={setTypeFilter} />
+
       {!isLoading && hasAnyExpenses && (
-        <div className="flex flex-col gap-3">
-          <div className="relative">
+        <ExpenseSummaryCard expenses={activeExpenses} formatCurrency={formatCurrency} />
+      )}
+
+      {!isLoading && hasAnyExpenses && (
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
@@ -219,130 +260,78 @@ export default function ExpensesPage() {
                 type="button"
                 onClick={() => setQuery("")}
                 aria-label="Clear search"
-                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
-
-          <div className="flex flex-wrap gap-3">
-            <DropdownMenu
-              label="Sort"
-              icon={ArrowUpDown}
-              options={SORT_OPTIONS}
-              value={sort}
-              onChange={setSort}
-            />
-            <DropdownMenu
-              label="View"
-              icon={LayoutGrid}
-              options={VIEW_OPTIONS}
-              value={view}
-              onChange={setView}
-            />
-          </div>
+          <ExpenseFilterSheet sort={sort} onSortChange={setSort} group={group} onGroupChange={setGroup} />
         </div>
       )}
 
       {isLoading && (
-        <Card className="p-0">
-          <div className="divide-y divide-border">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <ListRowSkeleton key={i} />
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {!isLoading && !hasAnyExpenses && (
-        <Card className="p-0">
-          <EmptyState
-            icon={Receipt}
-            title="No active expenses"
-            description="Add your first expense to start tracking where your money goes."
-            action={<Button onClick={openAddModal}>Add an expense</Button>}
-          />
-        </Card>
-      )}
-
-      {!isLoading &&
-        hasAnyExpenses &&
-        sortedExpenses.length === 0 &&
-        archivedExpenses.length === 0 &&
-        query && (
-          <Card className="p-0">
-            <EmptyState icon={Search} title="No matches" description={`Nothing matches "${query}".`} />
-          </Card>
-        )}
-
-      {!isLoading && sortedExpenses.length > 0 && view === "list" && (
-        <Card className="p-0">{renderList(sortedExpenses)}</Card>
-      )}
-
-      {!isLoading && sortedExpenses.length > 0 && view === "card" && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {sortedExpenses.map((expense) => (
-            <ExpenseItem
-              key={expense.id}
-              expense={expense}
-              categoryName={categoryName(expense.categoryId)}
-              formatCurrency={formatCurrency}
-              variant="card"
-              isEndingThisMonth={isEndingThisMonth(expense, CURRENT_MONTH)}
-              onViewDetails={() => setViewingExpense(expense)}
-              onEdit={() => openEditModal(expense)}
-              onArchive={() => handleArchive(expense)}
-              onDelete={() => deleteWithUndo(expense)}
-            />
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="rounded-2xl p-0">
+              <ListRowSkeleton />
+            </Card>
           ))}
         </div>
       )}
 
-      {!isLoading && sortedExpenses.length > 0 && view === "group-category" && (
-        <div className="flex flex-col gap-5">
-          {[...groupBy(sortedExpenses, (e) => e.categoryId).entries()]
-            .sort(([a], [b]) => categoryName(a).localeCompare(categoryName(b)))
-            .map(([categoryId, items]) => (
-              <div key={categoryId} className="flex flex-col gap-2">
-                <h2 className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {categoryName(categoryId)} · {items.length}
-                </h2>
-                <Card className="p-0">{renderList(items)}</Card>
-              </div>
-            ))}
-        </div>
+      {!isLoading && !hasAnyExpenses && (
+        <Card className="rounded-2xl p-0">
+          <EmptyState
+            icon={Receipt}
+            title="No active expenses"
+            description="Add your first expense to start tracking where your money goes."
+          />
+        </Card>
       )}
 
-      {!isLoading && sortedExpenses.length > 0 && view === "group-type" && (
-        <div className="flex flex-col gap-5">
-          {[...groupBy(sortedExpenses, (e) => resolveExpenseType(e)).entries()]
-            .sort(([a], [b]) =>
-              EXPENSE_TYPE_LABELS[a as ExpenseType].localeCompare(EXPENSE_TYPE_LABELS[b as ExpenseType])
-            )
-            .map(([type, items]) => (
-              <div key={type} className="flex flex-col gap-2">
-                <h2 className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {EXPENSE_TYPE_LABELS[type as ExpenseType]} · {items.length}
-                </h2>
-                <Card className="p-0">{renderList(items)}</Card>
-              </div>
-            ))}
-        </div>
+      {!isLoading && hasAnyExpenses && sortedExpenses.length === 0 && archivedExpenses.length === 0 && (
+        <Card className="rounded-2xl p-0">
+          <EmptyState
+            icon={Search}
+            title="No matches"
+            description={query ? `Nothing matches "${query}".` : "Nothing in this filter yet."}
+          />
+        </Card>
       )}
+
+      <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        {!isLoading && sortedExpenses.length > 0 && group === "none" && (
+          <div className="flex flex-col gap-3">{sortedExpenses.map((expense) => renderCard(expense))}</div>
+        )}
+
+        {!isLoading && sortedExpenses.length > 0 && group === "category" && (
+          <div className="flex flex-col gap-5">
+            {[...groupBy(sortedExpenses, (e) => e.categoryId).entries()]
+              .sort(([a], [b]) => categoryName(a).localeCompare(categoryName(b)))
+              .map(([categoryId, items]) => (
+                <div key={categoryId} className="flex flex-col gap-3">
+                  <h2 className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {categoryName(categoryId)} · {items.length}
+                  </h2>
+                  <div className="flex flex-col gap-3">{items.map((expense) => renderCard(expense))}</div>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
 
       {!isLoading && archivedExpenses.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <h2 className="flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
             <Archive className="h-4 w-4" />
-            Archived expenses · {archivedExpenses.length}
+            Archived · {archivedExpenses.length}
           </h2>
-          <Card className="p-0">
-            {renderList(
-              sortItems(archivedExpenses, "az", (e) => e.description, (e) => e.unitCost),
-              { archived: true }
+          <div className="flex flex-col gap-3">
+            {sortItems(archivedExpenses, "az", (e) => e.description, (e) => e.unitCost).map((expense) =>
+              renderCard(expense, { archived: true })
             )}
-          </Card>
+          </div>
         </div>
       )}
 
